@@ -10,6 +10,7 @@ local HttpService = game:GetService("HttpService")
 local Config = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local Island = require(script.Parent.Island)
 local Persistence = require(script.Parent.Persistence)
+local Session = require(script.Parent.Session)
 local World = require(script.Parent.World)
 
 local remotes = Instance.new("Folder")
@@ -80,9 +81,7 @@ local persistence = Persistence.new(adapter, {
 local world = World.create(Config)
 local runtimes = {}
 local slots = {}
-local currentIsland = {}
-local invitations = {}
-local buckets = {}
+local session
 local shuttingDown = false
 
 local function notice(player, message, ok)
@@ -112,11 +111,9 @@ local function avatar(player)
 end
 
 local function teleport(player, ownerId)
-	local target = healthyRuntime(ownerId) and ownerId or nil
-	currentIsland[player.UserId] = target or player.UserId
 	local root, humanoid = avatar(player)
 	if root and humanoid and humanoid.Health > 0 then
-		local spawn = world:getSpawn(target)
+		local spawn = world:getSpawn(ownerId)
 		if spawn then
 			player.Character:PivotTo(spawn)
 			root.AssemblyLinearVelocity = Vector3.zero
@@ -129,30 +126,10 @@ local function sendSnapshot(player)
 	if player.Parent ~= Players then
 		return
 	end
-	local runtime = runtimes[currentIsland[player.UserId] or player.UserId]
+	local runtime = runtimes[session:current(player.UserId)]
 	local ownRuntime = runtimes[player.UserId]
 	local now = os.time()
-	local playerList = {}
-	for _, other in ipairs(Players:GetPlayers()) do
-		table.insert(playerList, {
-			userId = other.UserId,
-			displayName = other.DisplayName,
-			hasIsland = healthyRuntime(other.UserId) ~= nil,
-		})
-	end
-	table.sort(playerList, function(a, b)
-		return a.userId < b.userId
-	end)
-	local pending = {}
-	for ownerId, expiresAt in pairs(invitations[player.UserId] or {}) do
-		local host = healthyRuntime(ownerId)
-		if expiresAt > now and host then
-			table.insert(pending, { ownerId = ownerId, ownerName = host.ownerName })
-		end
-	end
-	table.sort(pending, function(a, b)
-		return a.ownerId < b.ownerId
-	end)
+	local crew = session:view(player.UserId)
 	stateRemote:FireClient(player, {
 		kind = "snapshot",
 		island = runtime and runtime.model and runtime.model:snapshot(now) or nil,
@@ -163,8 +140,8 @@ local function sendSnapshot(player)
 		),
 		saveStatus = runtime and runtime.saveStatus or (ownRuntime and ownRuntime.saveStatus or "loading"),
 		studioMode = sessionOnly,
-		players = playerList,
-		invites = pending,
+		players = crew.players,
+		invites = crew.invites,
 		now = now,
 	})
 end
@@ -175,22 +152,13 @@ local function broadcast()
 	end
 end
 
-local function returnVisitors(ownerId, message)
-	for _, player in ipairs(Players:GetPlayers()) do
-		if currentIsland[player.UserId] == ownerId and player.UserId ~= ownerId then
-			teleport(player, player.UserId)
-			notice(player, message, false)
-		end
-	end
-end
-
 local function freeze(runtime, message)
 	if runtime.model and runtime.model.accepting then
 		runtime.model:close()
 		world:updateIsland(runtime.ownerId, runtime.model:snapshot(os.time()))
 	end
 	runtime.saveStatus = "recovery"
-	returnVisitors(runtime.ownerId, "This island is paused while its save connection recovers.")
+	session:closeIsland(runtime.ownerId, "This island is paused while its save connection recovers.")
 	local owner = findPlayer(runtime.ownerId)
 	if owner then
 		notice(owner, message, false)
@@ -236,174 +204,90 @@ local function save(runtime)
 	end
 end
 
-local function allowedRequest(player)
-	local now = os.clock()
-	local bucket = buckets[player.UserId]
-	if not bucket then
-		bucket = { tokens = 12, updated = now }
-		buckets[player.UserId] = bucket
-	end
-	bucket.tokens = math.min(12, bucket.tokens + (now - bucket.updated) * 5)
-	bucket.updated = now
-	if bucket.tokens < 1 then
-		return false
-	end
-	bucket.tokens -= 1
-	return true
-end
+-- Engine effects stay here; the request/crew coordinator also runs in the CLI.
+-- These callbacks must not yield: validation and island mutation are one turn.
+session = Session.new({
+	now = os.time,
+	clock = os.clock,
+	maxPlayers = Config.MaxPlayers,
+	island = function(ownerId)
+		local runtime = healthyRuntime(ownerId)
+		return runtime and runtime.model or nil
+	end,
+	isOwned = function(ownerId)
+		return persistence:isOwned(ownerId)
+	end,
+	alive = function(userId)
+		local player = findPlayer(userId)
+		if not player then
+			return false
+		end
+		local _, humanoid = avatar(player)
+		return humanoid ~= nil and humanoid.Health > 0
+	end,
+	facts = function(userId, ownerId, action)
+		local player = findPlayer(userId)
+		if not player then
+			return { distance = math.huge, alive = false }
+		end
+		local root, humanoid = avatar(player)
+		local target = world:getTargetPosition(ownerId, action.kind, action.target)
+		return {
+			distance = (root and target) and (root.Position - target).Magnitude or math.huge,
+			alive = humanoid ~= nil and humanoid.Health > 0,
+		}
+	end,
+	move = function(userId, ownerId)
+		local player = findPlayer(userId)
+		if player then
+			teleport(player, ownerId)
+		end
+	end,
+	notice = function(userId, message, ok)
+		local player = findPlayer(userId)
+		if player then
+			notice(player, message, ok)
+		end
+	end,
+	changed = function(ownerId)
+		local runtime = healthyRuntime(ownerId)
+		if runtime then
+			markChanged(runtime)
+		end
+	end,
+	freeze = function(ownerId)
+		local runtime = healthyRuntime(ownerId)
+		if runtime then
+			freeze(runtime, "Your save session expired. Please rejoin before continuing.")
+		end
+	end,
+	sync = function(userId)
+		local player = findPlayer(userId)
+		if player then
+			sendSnapshot(player)
+		end
+	end,
+	broadcast = broadcast,
+})
 
-local function validUserId(value)
-	return type(value) == "number" and value == value and math.abs(value) < 2 ^ 53 and value ~= 0 and value % 1 == 0
-end
-
-local function participants(ownerId)
-	local runtime = healthyRuntime(ownerId)
-	local count = 0
-	if runtime then
-		for _, player in ipairs(Players:GetPlayers()) do
-			local _, humanoid = avatar(player)
-			if
-				currentIsland[player.UserId] == ownerId
-				and runtime.model:canEdit(player.UserId)
-				and humanoid
-				and humanoid.Health > 0
-			then
-				count += 1
-			end
-		end
-	end
-	return math.clamp(count, 1, Config.MaxPlayers)
-end
-
-local function playAction(player, ownerId, action)
-	local runtime = healthyRuntime(ownerId)
-	if not runtime or currentIsland[player.UserId] ~= ownerId then
-		notice(player, "Visit this island before interacting with it.", false)
-		return
-	end
-	if not persistence:isOwned(ownerId) then
-		freeze(runtime, "Your save session expired. Please rejoin before continuing.")
-		return
-	end
-	local root, humanoid = avatar(player)
-	local targetPosition = world:getTargetPosition(ownerId, action.kind, action.target)
-	local distance = (root and targetPosition) and (root.Position - targetPosition).Magnitude or math.huge
-	local result = runtime.model:act(player.UserId, action, os.time(), {
-		distance = distance,
-		alive = humanoid ~= nil and humanoid.Health > 0,
-		participants = participants(ownerId),
-	})
-	if result.changed then
-		markChanged(runtime)
-		broadcast()
-	end
-	notice(player, result.message, result.ok)
-end
-
-local function socialAction(player, action)
-	local kind = action.kind
-	if kind == "sync" then
-		sendSnapshot(player)
-		return
-	elseif kind == "home" then
-		teleport(player, player.UserId)
-		sendSnapshot(player)
-		return
-	end
-	if not validUserId(action.userId) then
-		return
-	end
-	local other = findPlayer(action.userId)
-	if not other or other == player then
-		notice(player, "That player is no longer available.", false)
-		return
-	end
-	if kind == "visit" then
-		if healthyRuntime(other.UserId) then
-			teleport(player, other.UserId)
-			notice(player, "Welcome to " .. other.DisplayName .. "'s island. An invitation is needed to help.", true)
-		else
-			notice(player, "That island is still loading or unavailable.", false)
-		end
-	elseif kind == "invite" then
-		local own = healthyRuntime(player.UserId)
-		if not own then
-			notice(player, "Your island is unavailable right now.", false)
-			return
-		end
-		if own.model:canEdit(other.UserId) then
-			notice(player, "This player is already a helper.", false)
-			return
-		end
-		invitations[other.UserId] = invitations[other.UserId] or {}
-		if (invitations[other.UserId][player.UserId] or 0) > os.time() then
-			notice(player, "Your invitation is already waiting for a reply.", false)
-			return
-		end
-		invitations[other.UserId][player.UserId] = os.time() + 60
-		notice(other, player.DisplayName .. " invited you to help. Open Crew to accept.", true)
-		notice(player, "Invitation sent. It expires in 60 seconds.", true)
-	elseif kind == "acceptInvite" or kind == "declineInvite" then
-		local pending = invitations[player.UserId]
-		local expiresAt = pending and pending[other.UserId]
-		local host = healthyRuntime(other.UserId)
-		if not host or not expiresAt or expiresAt <= os.time() then
-			notice(player, "This invitation has expired.", false)
-			return
-		end
-		pending[other.UserId] = nil
-		if kind == "acceptInvite" then
-			if not host.model:setHelper(player.UserId, true) then
-				notice(player, "This island's crew is full or unavailable.", false)
-				return
-			end
-			teleport(player, other.UserId)
-			notice(player, "You're helping " .. host.ownerName .. ". Progress stays on their island.", true)
-			notice(other, player.DisplayName .. " joined your crew.", true)
-		end
-	elseif kind == "revoke" then
-		local own = healthyRuntime(player.UserId)
-		if own then
-			own.model:setHelper(other.UserId, false)
-			if invitations[other.UserId] then
-				invitations[other.UserId][player.UserId] = nil
-			end
-			if currentIsland[other.UserId] == player.UserId then
-				teleport(other, other.UserId)
-			end
-			notice(other, "Your helper access has ended. Welcome home.", false)
-		end
-	end
-	broadcast()
+local function canRequest(player)
+	local runtime = runtimes[player.UserId]
+	return not shuttingDown
+		and player.Parent == Players
+		and runtime
+		and runtime.player == player
+		and not runtime.closing
 end
 
 actionRemote.OnServerEvent:Connect(function(player, action)
-	if shuttingDown or not allowedRequest(player) or type(action) ~= "table" then
-		return
-	end
-	if type(action.kind) ~= "string" or #action.kind > 24 then
-		return
-	end
-	if action.target ~= nil and (type(action.target) ~= "string" or #action.target > 40) then
-		return
-	end
-	if action.kind == "harvest" or action.kind == "build" or action.kind == "startEvent" or action.kind == "repair" then
-		playAction(player, currentIsland[player.UserId], { kind = action.kind, target = action.target })
-	else
-		socialAction(player, action)
+	if canRequest(player) then
+		session:request(player.UserId, action)
 	end
 end)
 
 world.onAction = function(player, ownerId, action)
-	if not shuttingDown and allowedRequest(player) then
-		playAction(player, ownerId, action)
-	end
-end
-
-local function removeInvitations(userId)
-	invitations[userId] = nil
-	for _, pending in pairs(invitations) do
-		pending[userId] = nil
+	if canRequest(player) then
+		session:request(player.UserId, action, ownerId)
 	end
 end
 
@@ -416,8 +300,7 @@ local function closeRuntime(runtime)
 		runtime.model:close()
 		world:updateIsland(runtime.ownerId, runtime.model:snapshot(os.time()))
 	end
-	returnVisitors(runtime.ownerId, "The island owner left. Your work stays on their island.")
-	removeInvitations(runtime.ownerId)
+	session:closeIsland(runtime.ownerId, "The island owner left. Your work stays on their island.")
 	local deadline = os.clock() + 20
 	while (runtime.loading or runtime.saving) and os.clock() < deadline do
 		task.wait(0.1)
@@ -506,14 +389,14 @@ local function addPlayer(player)
 		lastSaveAttempt = os.time(),
 	}
 	runtimes[player.UserId] = runtime
-	currentIsland[player.UserId] = player.UserId
+	session:add(player.UserId, player.DisplayName)
 	player.CharacterAdded:Connect(function(character)
 		local root = character:WaitForChild("HumanoidRootPart", 10)
 		if root and player.Parent == Players then
-			teleport(player, currentIsland[player.UserId] or player.UserId)
+			session:travel(player.UserId, session:current(player.UserId))
 		end
 	end)
-	teleport(player, nil)
+	session:travel(player.UserId, nil)
 	sendSnapshot(player)
 	local record, reason = persistence:load(player.UserId, Island.defaultRecord(player.UserId))
 	local loadDeadline = os.clock() + 10
@@ -550,7 +433,7 @@ local function addPlayer(player)
 	runtime.model = Island.new(player.UserId, validRecord)
 	runtime.saveStatus = sessionOnly and "session" or "saved"
 	world:addIsland(player.UserId, slot, player.DisplayName, runtime.model:snapshot(os.time()))
-	teleport(player, player.UserId)
+	session:travel(player.UserId, player.UserId)
 	broadcast()
 end
 
@@ -558,16 +441,9 @@ Players.PlayerAdded:Connect(function(player)
 	task.spawn(addPlayer, player)
 end)
 Players.PlayerRemoving:Connect(function(player)
-	currentIsland[player.UserId] = nil
-	buckets[player.UserId] = nil
-	removeInvitations(player.UserId)
-	for _, other in pairs(runtimes) do
-		if other.model then
-			other.model:setHelper(player.UserId, false)
-		end
-	end
 	local runtime = runtimes[player.UserId]
-	if runtime then
+	if runtime and runtime.player == player then
+		session:remove(player.UserId)
 		closeRuntime(runtime)
 	end
 end)
@@ -595,17 +471,11 @@ task.spawn(function()
 				end
 			end
 		end
-		for _, pending in pairs(invitations) do
-			for ownerId, expiresAt in pairs(pending) do
-				if expiresAt <= now then
-					pending[ownerId] = nil
-				end
-			end
-		end
+		session:tick()
 		for _, player in ipairs(Players:GetPlayers()) do
 			local root = avatar(player)
 			if root and root.Position.Y < -20 then
-				teleport(player, currentIsland[player.UserId] or player.UserId)
+				session:travel(player.UserId, session:current(player.UserId))
 			end
 		end
 		broadcast()

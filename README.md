@@ -23,7 +23,7 @@ python3 scripts/bootstrap_tools.py
 python3 scripts/dev.py all
 ```
 
-On Windows, use `python` instead of `python3` if needed. Tools are downloaded from their official release assets, verified against pinned SHA-256 hashes, and kept in the ignored `.tools` directory. No Roblox account credentials are needed to compile or run the pure game-rule tests.
+On Windows, use `python` instead of `python3` if needed. Tools are downloaded from their official release assets, verified against pinned SHA-256 hashes, and kept in the ignored `.tools` directory. No Roblox account credentials are needed to compile or run the game-rule, persistence, and multiplayer coordinator tests.
 
 Output: `build/DriftwoodIsles.rbxlx`.
 
@@ -32,7 +32,7 @@ Individual commands:
 ```sh
 python3 scripts/dev.py check   # Luau compiler + core strict analysis + formatting
 python3 scripts/dev.py test    # Behavioral tests using the official Luau VM
-python3 scripts/dev.py build   # Rojo place build
+python3 scripts/dev.py build   # Rojo build + embedded source/hierarchy verification
 python3 scripts/dev.py format  # Format Luau source
 python3 scripts/dev.py serve   # Live source sync through the Rojo Studio plugin
 ```
@@ -65,16 +65,20 @@ Studio persistence uses `DriftwoodIsles_v1_Studio`, separate from the live store
 | `src/shared/Config.luau` | Resource yields, costs, coordinates, event timings, and limits |
 | `src/server/Island.luau` | Non-yielding island actions and event rules |
 | `src/server/Persistence.luau` | Session ownership and conditional saves |
-| `src/server/Main.server.luau` | Roblox services, network validation, player lifecycle, and scheduling |
+| `src/server/Session.luau` | Request validation, crew invitations, visiting, routing, and request limits |
+| `src/server/Main.server.luau` | Roblox services, character facts, player lifecycle, and scheduling |
 | `src/server/World.luau` | Original island geometry, prompts, project models, and lighting |
 | `src/client/Main.client.luau` | Responsive HUD, objectives, event display, and crew interface |
-| `tests/` | Public-interface behavior and save-failure tests |
+| `tests/` | Game rules, save failures, and two/four-player coordinator scenarios |
+| `scripts/verify_place.py` | Built-place service placement, current source, and configured property checks |
 
 The client submits intentions; the server checks permissions, location, character state, cooldowns, stockpile balance, and prerequisites. No client-submitted reward, balance, or price is trusted. Construction uses fixed sites, with no demolition, resource withdrawals, trading, or cross-island transfers.
 
 ## Validation and release status
 
-The automated pipeline compiles all Luau, strictly analyzes the pure core and tests, checks formatting, runs the public-interface suites, and builds the Studio place. These checks do not simulate Roblox physics, render the UI, exercise real DataStore networking, or substitute for engine-aware Script Analysis.
+The automated pipeline compiles all Luau, strictly analyzes the pure core and tests, checks formatting, runs 41 behavior groups, and builds the Studio place. The build gate verifies that the place embeds the exact current source in the correct services, preserves configured properties, and contains no test scripts.
+
+The multiplayer scenarios run the same `Session` coordinator used by the live server together with the real `Island` and `Persistence` modules. They cover invitations, host-only progress, revocation and departures, four-player storm rewards, request limits, and lost save sessions using controlled clocks, character facts, and storage. These checks do not run Roblox clients, simulate physics, render the UI, exercise real DataStore networking, or substitute for engine-aware Script Analysis.
 
 See [validation results](docs/validation.md) and [the Studio checklist](docs/studio-validation.md). Studio multiplayer, phone layout, real-device performance, and live persistence must be checked before inviting external players. Set the experience’s maximum server size to **4**; the server also enforces the four-island limit.
 

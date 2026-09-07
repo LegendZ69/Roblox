@@ -10,6 +10,7 @@ import sys
 import tempfile
 
 from bootstrap_tools import ROOT, default_tools_dir
+from verify_place import verify_place
 
 
 def executable(directory, name):
@@ -47,6 +48,7 @@ def check(tools_dir):
         ROOT / "src/shared/Config.luau",
         ROOT / "src/server/Island.luau",
         ROOT / "src/server/Persistence.luau",
+        ROOT / "src/server/Session.luau",
         *sorted((ROOT / "tests").rglob("*.spec.luau")),
     ]
     run([executable(tools_dir, "luau-analyze"), *map(str, core_files)])
@@ -94,6 +96,7 @@ def test(tools_dir):
 def build(tools_dir):
     (ROOT / "build").mkdir(exist_ok=True)
     run([executable(tools_dir, "rojo"), "build", "default.project.json", "-o", "build/DriftwoodIsles.rbxlx"])
+    verify_place(ROOT / "default.project.json", ROOT / "build/DriftwoodIsles.rbxlx")
 
 
 def main():

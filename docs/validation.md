@@ -8,14 +8,20 @@ The final local gate is `python3 scripts/dev.py all --tools-dir ../tools` using 
 
 | Check | Result |
 | --- | --- |
-| Luau syntax compilation | Passed for all 8 source/test files |
-| Strict analysis of Config, Island, Persistence, and their tests | Passed with zero diagnostics |
+| Luau syntax compilation | Passed for all 10 source/test files |
+| Strict analysis of Config, Island, Persistence, Session, and their tests | Passed with zero diagnostics |
 | StyLua formatting | Passed |
 | Island public-action suite | 10 behavior groups passed |
 | Persistence public-interface suite | 20 scenarios passed |
+| Session public-request integration suite | 11 behavior groups passed |
 | Rojo place build | Passed; generated `build/DriftwoodIsles.rbxlx` |
+| Built-place verification | Passed; 16 instances, 7 exact source embeddings, configured properties |
 
 Game-rule scenarios cover resource depletion, no-overspend construction, unauthorized/distant/dead/malformed actions, helper revocation, closure, solo/group event work, cooldowns, reward replay, reload, invalid records, and detached state. Persistence scenarios cover exclusive ownership, expiry, takeover, revision conflicts, retry callbacks, release, uncertain results, snapshots across yields, concurrent operations, and Studio IDs.
+
+The 11 session groups run the production request coordinator with the real Island and Persistence modules, controlled clocks and character facts, an in-memory storage adapter, and recorded transport effects. They verify two-player invitation-to-build-to-save behavior; host/helper stockpile isolation; revocation and stale host prompts; unknown/malformed/forged requests; invite expiry/decline/replay; owner and helper departures/rejoins; four-player storm scaling and one-time persisted rewards; participant eligibility; shared prompt/remote throttling; detached views with Studio IDs; and pause behavior after lease expiry or an unconfirmed save. Total: **41 behavior groups across 3 suites**. This is server coordinator integration testing, not a running Roblox multiplayer session.
+
+The build verifier derives instance paths and script classes from the project mappings, checks the embedded source against current files, enforces server/shared/client service placement, and checks configured primitive properties. It rejects unexpected instances and test scripts. Five intentionally corrupted artifacts were rejected during verification; a temporary added module was discovered automatically, and invalid test/server source mappings were rejected.
 
 ## Review fixes
 
@@ -28,6 +34,10 @@ Game-rule scenarios cover resource depletion, no-overspend construction, unautho
 - Unfinished building-site signs display current/required supplies.
 - Construction completion plays a quiet packaged Roblox sound only after a new project appears in a server snapshot; loading or changing islands does not replay it.
 - Removed an unused spatial ownership lookup; the authoritative active-island mapping remains the source of truth.
+- Extracted multiplayer coordination into the production `Session` module so its behavior can run under the standalone Luau VM.
+- Unsupported action kinds can no longer trigger a full-state broadcast; incoming extra fields cannot override authority, distance, rewards, or participation.
+- Remote/prompt dispatch and departure cleanup check Player instance identity before touching the active session.
+- Pausing an island now also clears its outgoing invitations immediately.
 
 ## Checks requiring Roblox Studio or a device
 
@@ -35,7 +45,7 @@ No Roblox Studio runtime is available in this Linux environment. The following h
 
 - Engine-aware Script Analysis for the Roblox service integration, world, and client scripts.
 - Launching the generated world, rendering the interface, and observing physics/collisions.
-- Two/four-client integration playtests and actual Roblox DataStore network behavior.
+- Two/four-client Roblox playtests, engine lifecycle scheduling, and actual DataStore network behavior.
 - Touch layout verification in Studio and performance measurements on a real phone.
 - Publishing or changing a live Roblox experience.
 
@@ -52,3 +62,9 @@ The island uses three fixed projects and one repeatable event. There is no free 
 **Spec:** The review found two small omissions: construction audio and building-site resource progress. Both are implemented. No additional high/medium ownership, economy, saving, or storm correctness defect was reported. Studio validation remains an explicit external gate.
 
 The completion cue uses `rbxasset://sounds/action_jump.mp3`, referenced in [Roblox's packaged character-sound code](https://github.com/Roblox/Core-Scripts/blob/425d2d641bdc4b6c1104a9d5f6c53c9ea758c5cb/PlayerScripts/StarterCharacterScripts/Sound.server.lua#L93), at reduced volume and increased playback speed. Confirm audibility in Studio along with the rest of runtime presentation.
+
+### Cloud continuation review
+
+Two independent reviews compared the coordinator extraction and build verifier against commit `52207bd`. The standards and spec reviews found no high or medium correctness or conformance issue. Both confirmed that production remote/prompt dispatch uses the tested coordinator and preserves server authority and host-only progress.
+
+The departure scenarios compose `Session.remove`, `Island.close`, and `Persistence.release` through public interfaces. They do not execute Main's yielding join/save/shutdown orchestration or actual RemoteEvent transport. Those remain part of the Studio gate.
