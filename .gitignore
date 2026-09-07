@@ -1,0 +1,8 @@
+build/
+.tools/
+node_modules/
+*.rbxl.lock
+*.rbxlx.lock
+.DS_Store
+tests/.runner-*.luau
+__pycache__/

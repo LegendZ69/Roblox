@@ -1,0 +1,14 @@
+{
+  "name": "DriftwoodIsles",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": { "Shared": { "$path": "src/shared" } },
+    "ServerScriptService": { "Server": { "$path": "src/server" } },
+    "StarterPlayer": {
+      "StarterPlayerScripts": { "Client": { "$path": "src/client" } },
+      "$properties": { "CharacterWalkSpeed": 18, "CameraMaxZoomDistance": 85, "CameraMinZoomDistance": 8 }
+    },
+    "Workspace": { "$properties": { "Gravity": 196.2, "FallenPartsDestroyHeight": -100 } },
+    "SoundService": { "$properties": { "RespectFilteringEnabled": true } }
+  }
+}

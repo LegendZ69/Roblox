@@ -1,0 +1,31 @@
+name: Validate and build
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install checksum-pinned tools
+        run: python scripts/bootstrap_tools.py
+      - name: Compile Luau, analyze core types, and check formatting
+        run: python scripts/dev.py check
+      - name: Run behavioral tests
+        run: python scripts/dev.py test
+      - name: Build Roblox Studio place
+        run: python scripts/dev.py build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: DriftwoodIsles
+          path: build/DriftwoodIsles.rbxlx
+          if-no-files-found: error
