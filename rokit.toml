@@ -1,0 +1,5 @@
+# Optional Rojo/StyLua management for developers already using Rokit.
+# scripts/bootstrap_tools.py installs these plus the pinned Luau CLI/compiler.
+[tools]
+rojo = "rojo-rbx/rojo@7.7.0"
+stylua = "JohnnyMorganz/StyLua@2.5.2"
