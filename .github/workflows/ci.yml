@@ -24,8 +24,14 @@ jobs:
         run: python scripts/dev.py test
       - name: Build Roblox Studio place
         run: python scripts/dev.py build
+      - name: Verify release tooling
+        run: python -m unittest discover -s scripts -p 'test_*.py'
+      - name: Package exact source version
+        run: python scripts/package_release.py
       - uses: actions/upload-artifact@v4
         with:
           name: DriftwoodIsles
-          path: build/DriftwoodIsles.rbxlx
+          path: |
+            build/DriftwoodIsles.rbxlx
+            build/release/
           if-no-files-found: error

@@ -15,7 +15,9 @@ The final local gate is `python3 scripts/dev.py all --tools-dir ../tools` using 
 | Persistence public-interface suite | 20 scenarios passed |
 | Session public-request integration suite | 11 behavior groups passed |
 | Rojo place build | Passed; generated `build/DriftwoodIsles.rbxlx` |
-| Built-place verification | Passed; 16 instances, 7 exact source embeddings, configured properties |
+| Built-place verification | Passed; 17 instances, 7 exact source embeddings, configured properties including release version |
+| Release packaging suite | 10 cases passed, including deterministic archives and committed-source provenance |
+| Release publication suite | 17 cases passed, including draft upload, interrupted resume, and conflict refusal |
 
 Game-rule scenarios cover resource depletion, no-overspend construction, unauthorized/distant/dead/malformed actions, helper revocation, closure, solo/group event work, cooldowns, reward replay, reload, invalid records, and detached state. Persistence scenarios cover exclusive ownership, expiry, takeover, revision conflicts, retry callbacks, release, uncertain results, snapshots across yields, concurrent operations, and Studio IDs.
 
@@ -68,3 +70,9 @@ The completion cue uses `rbxasset://sounds/action_jump.mp3`, referenced in [Robl
 Two independent reviews compared the coordinator extraction and build verifier against commit `52207bd`. The standards and spec reviews found no high or medium correctness or conformance issue. Both confirmed that production remote/prompt dispatch uses the tested coordinator and preserves server authority and host-only progress.
 
 The departure scenarios compose `Session.remove`, `Island.close`, and `Persistence.release` through public interfaces. They do not execute Main's yielding join/save/shutdown orchestration or actual RemoteEvent transport. Those remain part of the Studio gate.
+
+### Versioned release review
+
+An audit against the approved alpha scope found no missing cloud-verifiable gameplay implementation. Version `0.1.0-alpha.1` adds embedded version identity, deterministic release packaging, source/tool manifests, checksums, and a GitHub workflow that publishes a new version after validation. Repeated Rojo builds produced identical place bytes.
+
+Release review found and fixed two issues: ignored or index-hidden source edits could otherwise enter a package without belonging to its recorded commit, and SemVer build metadata was accepted by packaging but initially rejected by publication. The packager now compares the project and every mapped source byte-for-byte with the commit, and the publisher accepts the same safe version filenames. All **27 release-tool tests** pass. They exercise real temporary Git/package inputs and controlled API responses; the live workflow is the publication record. No release blocker remained after review.

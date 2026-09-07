@@ -6,7 +6,7 @@ Each player owns one saved island. Invited helpers work with that island’s sha
 
 ## Play in Roblox Studio
 
-1. Download `DriftwoodIsles.rbxlx` from this branch’s **Actions → Validate and build → DriftwoodIsles** artifact, or build it using the instructions below.
+1. Download the versioned `.rbxlx` or setup ZIP from [GitHub Releases](https://github.com/LegendZ69/Roblox/releases), or build it using the instructions below. Development builds are also available under **Actions → Validate and build → DriftwoodIsles**.
 2. Open the place in Roblox Studio on Windows or macOS.
 3. Press **Play**. The authored world is constructed by server code when the simulation starts; the edit viewport initially contains no island geometry.
 4. Walk to a tree and use its interaction prompt (keyboard **E**, or the prompt’s touch button). Collect 12 wood and build the campfire, then follow the objectives.
@@ -83,6 +83,12 @@ The multiplayer scenarios run the same `Session` coordinator used by the live se
 See [validation results](docs/validation.md) and [the Studio checklist](docs/studio-validation.md). Studio multiplayer, phone layout, real-device performance, and live persistence must be checked before inviting external players. Set the experience’s maximum server size to **4**; the server also enforces the four-island limit.
 
 The game has no paid products or external asset dependencies. The working title is provisional. Public publishing is a separate Roblox Studio action and has not been performed by this implementation.
+
+## Versioned releases
+
+The first release is **0.1.0-alpha.1**. `VERSION` records the source version; `ReplicatedStorage.ReleaseVersion` embeds it in the place for identification in Studio. Packaging rejects a mismatch. See [CHANGELOG.md](CHANGELOG.md) for changes and [the release procedure](docs/releasing.md) for future versions.
+
+Each release includes a versioned place, a ZIP with setup/validation guides, a source/tool manifest, and SHA-256 checksums. The workflow runs all game and release checks before uploading assets to a draft release, then publishes it. Alpha tags remain marked as prereleases; published version files are never silently replaced.
 
 ## Design and development
 

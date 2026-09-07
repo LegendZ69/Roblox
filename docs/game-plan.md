@@ -3,7 +3,7 @@
 Date: 7 September 2026
 Repository: [LegendZ69/Roblox](https://github.com/LegendZ69/Roblox)
 Working title: **Driftwood Isles** — provisional name, not a cleared release title.
-Status: Planning draft. The user selected the co-op island builder direction. Other product choices below are proposed defaults.
+Status: Implemented alpha. The user selected the co-op island builder direction and authorized implementation and versioned releases. The original design below records the adopted MVP scope; see `validation.md` for completed cloud checks and pending Studio/device checks.
 
 ## Problem statement
 
@@ -147,6 +147,6 @@ An alpha is ready for an invited playtest when the full loop is completable solo
 
 This plan uses the spec structure and demoable dependency slices from Matt Pocock’s [to-spec](https://github.com/mattpocock/skills/blob/main/skills/engineering/to-spec/SKILL.md) and [to-tickets](https://github.com/mattpocock/skills/blob/main/skills/engineering/to-tickets/SKILL.md). The repository has no configured Matt Pocock issue-tracker workflow. Run `/setup-matt-pocock-skills` before using its full publication workflow. That workflow reviews the testing boundary and ticket breakdown before publishing; this document is the concrete draft for that review.
 
-Only the game direction is user-confirmed. The working title, four-player limit, owner/helper model, fixed construction sites, event, pacing, and test boundary are recommended defaults. None require guessing account credentials or changing a live experience. The Roblox experience owner and target test devices must be identified before platform testing or publication.
+The implementation adopted the working title, four-player limit, owner/helper model, fixed construction sites, event, and public-interface test boundary. Pacing remains a target to measure. GitHub source and downloadable alpha releases are authorized; Roblox experience publication and device testing still require access to the target experience and devices.
 
-The next implementation task is slice 1: produce a Studio-openable island where a player can gather wood and build the first campfire.
+All seven slices have their cloud-implementable code and packaging. The remaining acceptance work is the recorded Studio/device checklist, including runtime gameplay, networking, controls, performance, and pacing. Additional content remains outside this alpha scope.

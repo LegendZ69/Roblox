@@ -2,7 +2,10 @@
   "name": "DriftwoodIsles",
   "tree": {
     "$className": "DataModel",
-    "ReplicatedStorage": { "Shared": { "$path": "src/shared" } },
+    "ReplicatedStorage": {
+      "Shared": { "$path": "src/shared" },
+      "ReleaseVersion": { "$className": "StringValue", "$properties": { "Value": "0.1.0-alpha.1" } }
+    },
     "ServerScriptService": { "Server": { "$path": "src/server" } },
     "StarterPlayer": {
       "StarterPlayerScripts": { "Client": { "$path": "src/client" } },
