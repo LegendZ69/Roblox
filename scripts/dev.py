@@ -10,6 +10,7 @@ import sys
 import tempfile
 
 from bootstrap_tools import ROOT, default_tools_dir
+from validation_report import collect_validation
 from verify_place import verify_place
 
 
@@ -28,7 +29,7 @@ def source_files():
     return sorted(path for folder in (ROOT / "src", ROOT / "tests") for path in folder.rglob("*") if path.suffix in (".lua", ".luau") and not path.name.startswith(".runner-"))
 
 
-def check(tools_dir):
+def compile_sources(tools_dir):
     files = source_files()
     if not files:
         raise RuntimeError("No Luau source files were found")
@@ -41,12 +42,16 @@ def check(tools_dir):
     if failures:
         raise RuntimeError("Luau compilation failed: " + ", ".join(failures))
     print(f"Luau syntax: {len(files)} files compiled successfully", flush=True)
+
+
+def analyze_sources(tools_dir):
     # These modules have no engine-instance dependencies and can be strictly
     # analyzed by the official standalone CLI. Roblox integration is checked
     # by Studio Script Analysis, never by suppressing its unknown engine types.
     core_files = [
         ROOT / "src/shared/Config.luau",
         ROOT / "src/shared/ClientPolicy.luau",
+        ROOT / "src/shared/Guidance.luau",
         ROOT / "src/server/Island.luau",
         ROOT / "src/server/Persistence.luau",
         ROOT / "src/server/Session.luau",
@@ -54,8 +59,17 @@ def check(tools_dir):
     ]
     run([executable(tools_dir, "luau-analyze"), *map(str, core_files)])
     print("Strict analysis: core modules and behavioral suites passed", flush=True)
+
+
+def check_formatting(tools_dir):
     run([executable(tools_dir, "stylua"), "--check", "src", "tests"])
     print("StyLua formatting: passed", flush=True)
+
+
+def check(tools_dir):
+    compile_sources(tools_dir)
+    analyze_sources(tools_dir)
+    check_formatting(tools_dir)
 
 
 def test(tools_dir):
@@ -94,10 +108,49 @@ def test(tools_dir):
         runner.unlink(missing_ok=True)
 
 
-def build(tools_dir):
+def build_place(tools_dir):
     (ROOT / "build").mkdir(exist_ok=True)
     run([executable(tools_dir, "rojo"), "build", "default.project.json", "-o", "build/DriftwoodIsles.rbxlx"])
+
+
+def verify_built_place():
     verify_place(ROOT / "default.project.json", ROOT / "build/DriftwoodIsles.rbxlx")
+
+
+def build(tools_dir):
+    build_place(tools_dir)
+    verify_built_place()
+
+
+def test_tooling(root=ROOT):
+    # Python 3.10/3.11's unittest CLI returns success on empty discovery.
+    # Keep this guard independent of the host interpreter's CLI exit policy.
+    program = """import sys, unittest
+suite = unittest.defaultTestLoader.discover('scripts', pattern='test_*.py')
+if suite.countTestCases() == 0:
+    sys.exit('No Python tooling tests discovered; refusing to report success')
+result = unittest.TextTestRunner().run(suite)
+sys.exit(0 if result.wasSuccessful() and result.testsRun > 0 else 1)
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", program], cwd=root, text=True,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+    )
+    print(result.stdout, end="", flush=True)
+    result.check_returncode()
+
+
+def all_checks(tools_dir):
+    collect_validation(ROOT, (
+        ("luau-compile", lambda: compile_sources(tools_dir)),
+        ("luau-analyze", lambda: analyze_sources(tools_dir)),
+        ("formatting", lambda: check_formatting(tools_dir)),
+        ("luau-specs", lambda: test(tools_dir)),
+        ("rojo-build", lambda: build_place(tools_dir)),
+        ("place-verification", verify_built_place),
+        ("python-unit-tests", test_tooling),
+    ))
+    print("Cloud validation evidence: build/cloud-validation.json (engine checks pending)", flush=True)
 
 
 def main():
@@ -107,11 +160,13 @@ def main():
     args = parser.parse_args()
     directory = args.tools_dir.resolve()
     try:
-        if args.action in ("check", "all"):
+        if args.action == "all":
+            all_checks(directory)
+        if args.action == "check":
             check(directory)
-        if args.action in ("test", "all"):
+        if args.action == "test":
             test(directory)
-        if args.action in ("build", "all"):
+        if args.action == "build":
             build(directory)
         if args.action == "format":
             run([executable(directory, "stylua"), "src", "tests"])

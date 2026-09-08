@@ -4,7 +4,7 @@ This repository contains one application: Driftwood Isles. GitHub releases distr
 
 ## Prepare a version
 
-1. Update `VERSION` with a new semantic version, such as `0.1.0-alpha.2`.
+1. Update `VERSION` with a new semantic version, such as `0.1.0-alpha.3`.
 2. Set `tree.ReplicatedStorage.ReleaseVersion.$properties.Value` in `default.project.json` to the same version.
 3. Record the changes in `CHANGELOG.md` and add `docs/releases/<version>.md` with release notes and current validation limits.
 4. Run the checks below, review the change, commit, and push it. CI tests the game and packaging on the pull request.
@@ -13,12 +13,13 @@ This repository contains one application: Driftwood Isles. GitHub releases distr
 ```sh
 python3 scripts/bootstrap_tools.py
 python3 scripts/dev.py all
-python3 -m unittest discover -s scripts -p 'test_*.py'
 # Commit the reviewed source before packaging; the working tree must be clean.
 python3 scripts/package_release.py
 ```
 
-The default output directory is `build/release`. It must not already exist. For a reproducibility check, use a different fresh directory with `--output`; do not mix files from different versions. The source commit, source tree, pinned tool versions, artifact sizes, and hashes are recorded in `release-manifest.json`. Packaging checks the project mapping and every mapped source against the actual Git commit, including ignored files and index-hidden edits. It verifies source embedding and version identity but does not itself claim that tests or Studio ran.
+The default output directory is `build/release`. It must not already exist. For a reproducibility check, use a different fresh directory with `--output`; do not mix files from different versions. The source commit, source tree, pinned tool versions, artifact sizes, and hashes are recorded in `release-manifest.json`. Packaging checks the project mapping and every mapped source against the actual Git commit, including ignored files and index-hidden edits. It verifies source embedding and version identity but does not itself run tests or Studio.
+
+Starting with alpha.3, `dev.py all` also runs Python tooling tests and generates `build/cloud-validation.json`. Only a successful full run with unchanged inputs produces evidence; failed attempts invalidate the previous report. The report records exact tested input and place hashes, successful check stages, and pending engine/device checks. Packaging requires a current report, compares every reported input with the commit, and includes it in the setup ZIP. Rerun the full command after editing any relevant input, including documentation. Committing unchanged tested bytes does not invalidate the report. This is an auditable record, not a signed attestation; the matching CI run provides execution evidence.
 
 ## Publication behavior
 

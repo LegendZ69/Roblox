@@ -12,6 +12,8 @@ This checklist requires Roblox Studio on Windows or macOS and access to a dedica
 - [ ] Complete, fail, and retry a storm. Observe objectives, one reward, cooldown, and no permanent destruction on failure.
 - [ ] Reset the character and confirm the player returns to the active island with correct UI state.
 - [ ] While the personal profile is loading or unavailable, use Crew to visit, accept/decline an invitation, and return to the hub. Confirm personal load completion does not interrupt a chosen visit and that editing still requires host permission.
+- [ ] Visit a storm without helper permission: the objective remains read-only and the event control says it is being watched. Pause the host island: both owner and helper see recovery directions, not repair or invitation instructions.
+- [ ] Confirm exact wood/stone deficits and completed-tutorial guidance after reload. Check that longer directions scroll without clipping and Studio save labels retain loading/recovery status.
 
 ## Two and four clients
 

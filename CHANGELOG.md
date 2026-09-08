@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.1.0-alpha.3 — 2026-09-08
+
+Milestones 2–5: progression, storm acceptance, guided first session, and verified alpha handoff.
+
+- Add end-to-end bridge/stone/beacon acceptance scenarios, including fresh-session reloads at every project checkpoint and owner-plus-two-helper construction.
+- Verify storms with every supported crew size, failure/deadline/retry paths, changing participants, departure cancellation, and ambiguous reward-save recovery.
+- Move actual HUD objectives, project cards, event captions, and save messages into the tested Guidance presenter. Preserve read-only and paused-state instructions during storms, display exact resource deficits, and keep loading/recovery visible in Studio.
+- Let objective detail text grow inside its scroll panel; desktop/touch rendering still needs Studio verification.
+- Emit deterministic cloud-validation evidence only after all game, build, and tooling checks pass. Package it with the milestone handoff guide; reject missing/stale reports, changed place bytes, and tested files that differ from the release commit.
+- Verify 71 Luau behavior groups and 65 Python tooling tests, with an explicit empty-discovery guard for all supported Python versions. Studio, live DataStore, device performance, and Roblox experience publication checks remain explicitly pending.
+
 ## 0.1.0-alpha.2 — 2026-09-08
 
 Recovery controls and release handoff fixes.
