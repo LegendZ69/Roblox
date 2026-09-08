@@ -25,7 +25,7 @@ python3 scripts/dev.py all
 
 On Windows, use `python` instead of `python3` if needed. Tools are downloaded from their official release assets, verified against pinned SHA-256 hashes, and kept in the ignored `.tools` directory. No Roblox account credentials are needed to compile or run the game-rule, persistence, and multiplayer coordinator tests.
 
-Output: `build/DriftwoodIsles.rbxlx`.
+Outputs: `build/DriftwoodIsles.rbxlx` and `build/cloud-validation.json`. The full command also runs Python tooling tests; individual commands do not refresh the validation report.
 
 Individual commands:
 
@@ -64,32 +64,34 @@ Studio persistence uses `DriftwoodIsles_v1_Studio`, separate from the live store
 | --- | --- |
 | `src/shared/Config.luau` | Resource yields, costs, coordinates, event timings, and limits |
 | `src/shared/ClientPolicy.luau` | Testable HUD action eligibility, including recovery-safe social controls |
+| `src/shared/Guidance.luau` | Actual HUD objectives, project cards, event captions, and truthful save guidance |
 | `src/server/Island.luau` | Non-yielding island actions and event rules |
 | `src/server/Persistence.luau` | Session ownership and conditional saves |
 | `src/server/Session.luau` | Request validation, crew invitations, visiting, routing, and request limits |
 | `src/server/Main.server.luau` | Roblox services, character facts, player lifecycle, and scheduling |
 | `src/server/World.luau` | Original island geometry, prompts, project models, and lighting |
 | `src/client/Main.client.luau` | Responsive HUD, objectives, event display, and crew interface |
-| `tests/` | Game rules, save failures, and two/four-player coordinator scenarios |
+| `tests/` | Game rules, save failures, progression checkpoints, 1–4-player storms, and HUD decisions |
 | `scripts/verify_place.py` | Built-place service placement, current source, and configured property checks |
+| `scripts/validation_report.py` | Deterministic validation evidence bound to tested inputs and the built place |
 
 The client submits intentions; the server checks permissions, location, character state, cooldowns, stockpile balance, and prerequisites. No client-submitted reward, balance, or price is trusted. Construction uses fixed sites, with no demolition, resource withdrawals, trading, or cross-island transfers.
 
 ## Validation and release status
 
-The automated pipeline compiles all Luau, strictly analyzes the pure core and tests, checks formatting, runs 50 behavior groups, and builds the Studio place. The build gate verifies that the place embeds the exact current source in the correct services, preserves configured properties with compatible types, and contains no test scripts. Release validation also runs 45 Python tooling tests.
+The automated pipeline compiles all Luau, strictly analyzes the pure core and tests, checks formatting, runs 71 behavior groups across seven suites, and builds the Studio place. The build gate verifies that the place embeds the exact current source in the correct services, preserves configured properties with compatible types, and contains no test scripts. The full command also runs Python tooling tests and writes a validation report only after every stage passes with unchanged inputs.
 
 The multiplayer scenarios run the same `Session` coordinator used by the live server together with the real `Island` and `Persistence` modules. They cover invitations, host-only progress, revocation and departures, four-player storm rewards, request limits, and lost save sessions using controlled clocks, character facts, and storage. These checks do not run Roblox clients, simulate physics, render the UI, exercise real DataStore networking, or substitute for engine-aware Script Analysis.
 
-See [validation results](docs/validation.md) and [the Studio checklist](docs/studio-validation.md). Studio multiplayer, phone layout, real-device performance, and live persistence must be checked before inviting external players. Set the experience’s maximum server size to **4**; the server also enforces the four-island limit.
+See [validation results](docs/validation.md), [milestones 2–5](docs/milestones.md), and [the Studio checklist](docs/studio-validation.md). Studio multiplayer, phone layout, real-device performance, and live persistence must be checked before inviting external players. Set the experience’s maximum server size to **4**; the server also enforces the four-island limit.
 
 The game has no paid products or external asset dependencies. The working title is provisional. Public publishing is a separate Roblox Studio action and has not been performed by this implementation.
 
 ## Versioned releases
 
-The current release version is **0.1.0-alpha.2**. `VERSION` records the source version; `ReplicatedStorage.ReleaseVersion` embeds it in the place for identification in Studio. Packaging rejects a mismatch. See [CHANGELOG.md](CHANGELOG.md) for changes and [the release procedure](docs/releasing.md) for future versions.
+The current release version is **0.1.0-alpha.3**. `VERSION` records the source version; `ReplicatedStorage.ReleaseVersion` embeds it in the place for identification in Studio. Packaging rejects a mismatch. See [CHANGELOG.md](CHANGELOG.md) for changes and [the release procedure](docs/releasing.md) for future versions.
 
-Each release includes a versioned place, a ZIP with setup/validation guides, a source/tool manifest, and SHA-256 checksums. The workflow runs all game and release checks before uploading assets to a draft release, then publishes it. Alpha tags remain marked as prereleases; published version files are never silently replaced.
+Each release includes a versioned place, a ZIP with setup/validation guides and source-bound cloud evidence, a source/tool manifest, and SHA-256 checksums. The workflow runs all game and release checks before uploading assets to a draft release, then publishes it. Alpha tags remain marked as prereleases; published version files are never silently replaced.
 
 ## Design and development
 

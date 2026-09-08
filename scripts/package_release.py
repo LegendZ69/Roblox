@@ -19,6 +19,7 @@ from xml.etree import ElementTree
 import zipfile
 
 from verify_place import expected_instances, verify_place
+from validation_report import validate_report
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -31,7 +32,7 @@ VERSION_PATTERN = re.compile(
 )
 DOCUMENTS = (
     "README.md", "docs/validation.md", "docs/studio-validation.md", "docs/releasing.md",
-    "docs/game-plan.md", "CONTEXT.md", "CONTRIBUTING.md", "docs/implementation-contract.md",
+    "docs/game-plan.md", "docs/milestones.md", "CONTEXT.md", "CONTRIBUTING.md", "docs/implementation-contract.md",
 )
 PENDING_STUDIO_CHECKS = (
     "Roblox Studio Script Analysis",
@@ -92,6 +93,21 @@ def verify_committed_sources(root, commit, project_bytes):
 
 def fingerprint(name, data):
     return {"name": name, "size_bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()}
+
+
+def verified_cloud_report(root, commit):
+    report = validate_report(root)
+    # A clean Git status alone cannot detect ignored or index-hidden test edits.
+    # Bind every tested input, not just the production scripts, to this commit.
+    for entry in report["inputs"]:
+        name = entry["path"]
+        try:
+            data = committed_file(root, commit, name)
+        except subprocess.CalledProcessError as error:
+            raise RuntimeError(f"Validation input is absent from the release commit: {name}") from error
+        if len(data) != entry["size_bytes"] or hashlib.sha256(data).hexdigest() != entry["sha256"]:
+            raise RuntimeError(f"Validation input differs from the release commit: {name}")
+    return report
 
 
 def json_bytes(value):
@@ -163,6 +179,10 @@ def package_release(root, version_file, output):
         place_path.write_bytes(place_bytes)
         # Verify the exact bytes that will ship, not a separate read of the input.
         verify_place(root / "default.project.json", place_path)
+        cloud_report = verified_cloud_report(root, identity["commit"])
+        if cloud_report["place"]["sha256"] != hashlib.sha256(place_bytes).hexdigest():
+            raise RuntimeError("The packaged place differs from the cloud validation report")
+        members["cloud-validation.json"] = json_bytes(cloud_report)
         metadata = {
             "schemaVersion": 1,
             "application": "Driftwood Isles",
@@ -174,7 +194,8 @@ def package_release(root, version_file, output):
             "toolVersionsSource": "scripts/toolchain.json (pins; tools are not executed by packaging)",
             "verification": {
                 "place": "Exact production source, instance hierarchy and configured properties passed during packaging",
-                "behavioralTests": "Not run by packaging; consult CI for the recorded commit",
+                "behavioralTests": "Successful cloud stages recorded; packaging validates evidence but does not rerun tests",
+                "cloudReport": "cloud-validation.json (inside setup ZIP)",
                 "studio": {"status": "pending", "checks": list(PENDING_STUDIO_CHECKS)},
             },
         }
@@ -204,6 +225,8 @@ def package_release(root, version_file, output):
         if clean_identity(root) != identity:
             raise RuntimeError("The source commit changed while packaging; rerun from a stable checkout")
         verify_committed_sources(root, identity["commit"], project_bytes)
+        if validate_report(root) != cloud_report:
+            raise RuntimeError("Cloud validation evidence changed while packaging")
         if output.exists():
             raise RuntimeError("Release output appeared while packaging; refusing to replace it")
         os.rename(staging, output)

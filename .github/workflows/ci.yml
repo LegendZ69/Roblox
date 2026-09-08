@@ -18,14 +18,8 @@ jobs:
           python-version: "3.12"
       - name: Install checksum-pinned tools
         run: python scripts/bootstrap_tools.py
-      - name: Compile Luau, analyze core types, and check formatting
-        run: python scripts/dev.py check
-      - name: Run behavioral tests
-        run: python scripts/dev.py test
-      - name: Build Roblox Studio place
-        run: python scripts/dev.py build
-      - name: Verify release tooling
-        run: python -m unittest discover -s scripts -p 'test_*.py'
+      - name: Validate game, place, and tooling with source-bound evidence
+        run: python scripts/dev.py all
       - name: Package exact source version
         run: python scripts/package_release.py
       - uses: actions/upload-artifact@v4
@@ -33,5 +27,6 @@ jobs:
           name: DriftwoodIsles
           path: |
             build/DriftwoodIsles.rbxlx
+            build/cloud-validation.json
             build/release/
           if-no-files-found: error

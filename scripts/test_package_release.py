@@ -15,6 +15,7 @@ import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from package_release import DOCUMENTS, package_release, validate_version
+from validation_report import INPUT_ROOTS, INPUT_FILES, STAGES, REPORT_PATH, collect_validation
 from verify_place import verify_place
 
 
@@ -26,12 +27,13 @@ class ReleasePackagingTests(unittest.TestCase):
         self.write(".gitignore", "build/\n")
         self.write("VERSION", "0.1.0-alpha.1\n")
         self.write("scripts/toolchain.json", json.dumps({"luau": {"version": "0.737"}}))
-        for name in (
-            "README.md", "docs/validation.md", "docs/studio-validation.md", "CHANGELOG.md",
-            "docs/releasing.md", "docs/game-plan.md", "CONTEXT.md", "CONTRIBUTING.md",
-            "docs/implementation-contract.md",
-        ):
+        for name in (*DOCUMENTS, "CHANGELOG.md"):
             self.write(name, name + "\n")
+        for name in INPUT_FILES:
+            if not (self.root / name).exists():
+                self.write(name, "fixture\n")
+        for name in INPUT_ROOTS:
+            (self.root / name).mkdir(exist_ok=True)
         self.write("README.md", "\n".join(
             f"[Guide]({name}#section)" for name in (
                 "docs/validation.md", "docs/studio-validation.md", "CHANGELOG.md",
@@ -82,10 +84,17 @@ class ReleasePackagingTests(unittest.TestCase):
             stderr=subprocess.PIPE,
         ).stdout.decode().strip()
 
-    def commit(self):
+    def commit(self, refresh=True):
         self.git("add", ".")
         self.git("-c", "user.name=Release Test", "-c", "user.email=release-test@example.invalid",
                  "commit", "--quiet", "-m", "Fixture")
+        if refresh:
+            self.record_validation()
+
+    def record_validation(self):
+        # Packaging fixtures deliberately supply synthetic successful stages.
+        # Only the real dev.py pipeline executes tools; these are not game checks.
+        collect_validation(self.root, [(name, lambda: None) for name in STAGES])
 
     def package(self, output="build/release"):
         return package_release(self.root, Path("VERSION"), Path(output))
@@ -116,6 +125,8 @@ class ReleasePackagingTests(unittest.TestCase):
                 self.assertEqual(entry.compress_type, zipfile.ZIP_STORED)
             self.assertEqual(archive.read("VERSION"), b"0.1.0-alpha.1\n")
             self.assertEqual(archive.read("release-notes.md"), b"Alpha release fixture\n")
+            self.assertEqual(archive.read("cloud-validation.json"), (self.root / REPORT_PATH).read_bytes())
+            self.assertEqual(manifest["verification"]["cloudReport"], "cloud-validation.json (inside setup ZIP)")
             inner_manifest = json.loads(archive.read("archive-manifest.json"))
             self.assertEqual(inner_manifest["git_commit"], manifest["git_commit"])
             for line in archive.read("SHA256SUMS").decode().splitlines():
@@ -125,6 +136,39 @@ class ReleasePackagingTests(unittest.TestCase):
     def test_setup_archive_contains_every_local_markdown_guide_link(self):
         self.package()
         self.assert_archive_guide_links()
+
+    def test_missing_or_stale_cloud_evidence_prevents_release(self):
+        (self.root / REPORT_PATH).unlink()
+        with self.assertRaisesRegex(RuntimeError, "cloud validation report"):
+            self.package()
+        self.assertFalse((self.root / "build/release").exists())
+        self.record_validation()
+        self.write("docs/validation.md", "Changed after validation\n")
+        self.commit(refresh=False)
+        with self.assertRaisesRegex(RuntimeError, "cloud validation report"):
+            self.package()
+        self.assertFalse((self.root / "build/release").exists())
+        self.record_validation()
+        self.package()
+
+    def test_index_hidden_test_edit_cannot_claim_tested_commit(self):
+        self.write("tests/Example.spec.luau", "return function() end\n")
+        self.commit()
+        self.git("update-index", "--assume-unchanged", "tests/Example.spec.luau")
+        self.write("tests/Example.spec.luau", "return function() print('changed') end\n")
+        self.record_validation()
+        self.assertEqual(self.git("status", "--porcelain"), "")
+        with self.assertRaisesRegex(RuntimeError, "Validation input differs from the release commit"):
+            self.package()
+        self.assertFalse((self.root / "build/release").exists())
+
+    def test_ignored_test_input_must_exist_in_recorded_commit(self):
+        self.write("tests/build/Uncommitted.spec.luau", "return function() end\n")
+        self.record_validation()
+        self.assertEqual(self.git("status", "--porcelain"), "")
+        with self.assertRaisesRegex(RuntimeError, "Validation input is absent from the release commit"):
+            self.package()
+        self.assertFalse((self.root / "build/release").exists())
 
     def test_current_repository_guides_have_complete_archive_links(self):
         source_root = Path(__file__).resolve().parents[1]

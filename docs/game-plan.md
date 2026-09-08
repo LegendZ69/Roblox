@@ -114,6 +114,8 @@ Slices 3 and 4 can proceed independently after saving works. Slices 5 and 6 can 
 
 **First milestone:** slices 1–3. Two people can gather and build together, and the owner can leave and resume the result. This proves the central technical promise before more content is added.
 
+**Milestones 2–5:** respectively slices 4, 5, 6, and 7: bridge/beacon progression, the cooperative storm, guided first session, and a verified alpha handoff. See [milestones.md](milestones.md) for the acceptance map and the boundary between cloud evidence and pending runtime tests.
+
 ## Testing decisions and acceptance gate
 
 There are no existing test conventions in the repository. The proposed primary test boundary is the server’s public island-action interface: supply a player action and observe the resulting state and event output. Use a controllable clock and persistence adapter to exercise failure conditions; do not test private helper functions simply because they exist.
@@ -157,5 +159,6 @@ All seven slices have their cloud-implementable code and packaging. The remainin
 | --- | --- | --- |
 | 0.1.0-alpha.1 | Core solo/co-op loop, saved ownership, production coordinator tests, reproducible versioned GitHub release | Studio and device gate |
 | 0.1.0-alpha.2 | Recovery-safe Crew controls, shutdown wait guards, exact historical release retries, complete setup ZIP, stricter place verification | GUI/lifecycle effects require Studio; device/performance/pacing gate unchanged |
+| 0.1.0-alpha.3 | Milestones 2–5 acceptance suites, permission-aware guided session, exact resource deficits, and source-bound cloud-validation evidence in the setup ZIP | All engine/client/device acceptance remains explicitly pending; see milestones.md |
 
 Each version is recorded in `CHANGELOG.md` and its own release notes. A reviewed version change on `main` builds, validates, and publishes its GitHub prerelease. This does not publish a Roblox experience.

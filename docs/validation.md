@@ -1,6 +1,6 @@
 # Implementation validation
 
-Date: 8 September 2026. Target: Driftwood Isles `0.1.0-alpha.2`.
+Date: 8 September 2026. Target: Driftwood Isles `0.1.0-alpha.3`.
 
 ## Automated checks
 
@@ -8,23 +8,27 @@ The final local gate is `python3 scripts/dev.py all --tools-dir ../tools` using 
 
 | Check | Result |
 | --- | --- |
-| Luau syntax compilation | Passed for all 12 source/test files |
-| Strict analysis of Config, ClientPolicy, Island, Persistence, Session, and their tests | Passed with zero diagnostics |
+| Luau syntax compilation | Passed for all 16 source/test files |
+| Strict analysis of Config, ClientPolicy, Guidance, Island, Persistence, Session, and their tests | Passed with zero diagnostics |
 | StyLua formatting | Passed |
 | Island public-action suite | 10 behavior groups passed |
 | Persistence public-interface suite | 20 scenarios passed |
 | Session public-request integration suite | 12 behavior groups passed |
 | Client action-eligibility policy suite | 8 behavior groups passed |
+| Bridge/beacon progression acceptance | 4 behavior groups passed |
+| Cooperative storm acceptance | 8 behavior groups passed, including all 1–4-player crew sizes |
+| Production HUD guidance | 9 behavior groups passed |
 | Rojo place build | Passed; generated `build/DriftwoodIsles.rbxlx` |
-| Built-place verification | Passed; 18 instances, 8 exact source embeddings, configured properties including release version |
-| Release packaging suite | 12 cases passed, including deterministic archives, committed-source provenance, and actual setup-guide links |
+| Built-place verification | Passed; 19 instances, 9 exact source embeddings, configured properties including release version |
+| Release packaging suite | 15 cases passed, including deterministic archives, tested-source provenance, complete guides, and required current evidence |
 | Release publication suite | 17 cases passed, including draft upload, interrupted resume, and conflict refusal |
 | Reviewed release-commit selector suite | 8 cases passed |
 | Place-verifier regression suite | 8 cases passed |
+| Cloud validation report suite | 17 cases passed, including failed-stage invalidation, changed inputs/place, exact report structure, deterministic bytes, and nonempty Python discovery |
 
 Game-rule scenarios cover resource depletion, no-overspend construction, unauthorized/distant/dead/malformed actions, helper revocation, closure, solo/group event work, cooldowns, reward replay, reload, invalid records, and detached state. Persistence scenarios cover exclusive ownership, expiry, takeover, revision conflicts, retry callbacks, release, uncertain results, snapshots across yields, concurrent operations, and Studio IDs.
 
-The 12 session groups run the production request coordinator with the real Island and Persistence modules, controlled clocks and character facts, an in-memory storage adapter, and recorded transport effects. They verify two-player invitation-to-build-to-save behavior; host/helper stockpile isolation; revocation and stale host prompts; unknown/malformed/forged requests; invite expiry/decline/replay; owner and helper departures/rejoins; four-player storm scaling and one-time persisted rewards; participant eligibility; shared prompt/remote throttling; detached views with Studio IDs; pause behavior after lease expiry or an unconfirmed save; and invited cooperation when the helper's own profile is unavailable, without creating a replacement profile. ClientPolicy adds eight groups for the actual HUD's startup, loading/recovery, owner/helper/visitor, frozen-state, social-target, save-state, and malformed-action decisions. Total: **50 behavior groups across 4 Luau suites**. This does not run Roblox clients or GUI events.
+The 12 session groups run the production request coordinator with the real Island and Persistence modules, controlled clocks and character facts, an in-memory storage adapter, and recorded transport effects. They verify two-player invitation-to-build-to-save behavior; host/helper stockpile isolation; revocation and stale host prompts; unknown/malformed/forged requests; invite expiry/decline/replay; owner and helper departures/rejoins; four-player storm scaling and one-time persisted rewards; participant eligibility; shared prompt/remote throttling; detached views with Studio IDs; pause behavior after lease expiry or an unconfirmed save; and invited cooperation when the helper's own profile is unavailable, without creating a replacement profile. ClientPolicy adds eight groups for the actual HUD's startup, loading/recovery, owner/helper/visitor, frozen-state, social-target, save-state, and malformed-action decisions. Alpha.3 adds four progression groups, eight storm groups, and nine Guidance groups. Total: **71 behavior groups across 7 Luau suites**. This does not run Roblox clients or GUI events.
 
 The build verifier derives instance paths and script classes from the project mappings, checks the embedded source against current files, enforces server/shared/client service placement, and checks configured primitive properties. It rejects unexpected instances and test scripts. Five intentionally corrupted artifacts were rejected during verification; a temporary added module was discovered automatically, and invalid test/server source mappings were rejected.
 
@@ -85,3 +89,21 @@ Release review found and fixed two issues: ignored or index-hidden source edits 
 Independent game and release reviews found no blocking correctness issues in the changes against `173241f`. Both HUD buttons and outgoing requests now use the tested ClientPolicy. Loading/unavailable profiles retain safe social controls while economic and owner-only actions stay restricted. The server rechecks shutdown/departure after waits and preserves a chosen visit when personal loading finishes. Those small Main lifecycle changes are source-reviewed and compile-checked; Roblox scheduling and teleport effects are not executed by the cloud tests.
 
 Release retries now select an exact commit from reviewed main history before running that commit's scripts, and publication receives the selected identity. ZIP tests check all local Markdown links in the actual setup guides. Verifier regressions reject unsupported root settings, Boolean/numeric substitutions, and rounded large integer values. **45 Python tests pass** across packaging, publication, commit selection, and place verification. The remaining milestones require Studio/device/runtime access; no additional approved cloud implementation gap was identified after this review.
+
+### Alpha.3 milestones 2–5
+
+The explicit [milestone acceptance map](milestones.md) follows the remaining approved slices. Progression and storm code was already present; new suites execute it through public production interfaces, including fresh lease acquisition after saved checkpoints, host-only shared construction, all supported storm crew sizes, timeout/retry, changing permissions, owner departure, and committed-but-unacknowledged reward recovery. Storage assertions reload through Persistence rather than inspecting its private envelopes.
+
+The actual HUD now consumes Guidance for objectives, cards, event captions, and save labels. This fixes visitor repair instructions during storms, paused-helper invitation instructions, and hidden Studio loading/recovery information. Exact mixed-resource deficits and role-appropriate completed-tutorial guidance are covered by the new presentation suite. Text height changes are compiled, not visually verified.
+
+The full pipeline runs **65 Python tests** and emits deterministic `cloud-validation.json` only after seven successful check stages with stable inputs. The report fingerprints tested sources, tests, tooling, project/configuration, and documentation, plus the verified place. Later edits, changed place bytes, failed stages, incomplete reports, ignored/index-hidden tested files absent from the commit, and type-substituted metadata are rejected. The ZIP includes this evidence and the milestone guide. The report is not a signed attestation; CI and release verification establish the execution and published artifact record.
+
+All four milestones have cloud-implemented behavior and acceptance coverage. Their engine, networking, device, performance, and pacing acceptance is still pending, as listed above and in the Studio checklist.
+
+#### Standards review
+
+One finding against the alpha.2 baseline: Python 3.10–3.11 can report success for empty unittest discovery. The full pipeline now checks the discovered count explicitly and verifies both empty and failed suites are rejected. Follow-up review confirmed the finding is resolved. No other substantive standards breach or actionable smell was found.
+
+#### Spec review
+
+No blocking spec findings. Milestones 2–5 match approved slices 4–7 without additional product scope. Production HUD updates preserve visitor/recovery guidance, acceptance suites use the real public interfaces, and release evidence binds tested bytes to the package. Engine/device limitations remain correctly separated from cloud acceptance.

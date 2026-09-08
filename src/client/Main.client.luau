@@ -10,6 +10,7 @@ local SoundService = game:GetService("SoundService")
 local player = Players.LocalPlayer
 local Config: any = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
 local ClientPolicy = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("ClientPolicy"))
+local Guidance = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Guidance"))
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
 local actionRemote = remotes:WaitForChild("Action") :: RemoteEvent
 local stateRemote = remotes:WaitForChild("State") :: RemoteEvent
@@ -271,6 +272,7 @@ goalList.Parent = goalScroll
 local objectiveDetail =
 	label("Directions", goalScroll, "Saved progress will appear here when your island is ready.", 13, palette.muted)
 objectiveDetail.Size = UDim2.new(1, 0, 0, 58)
+objectiveDetail.AutomaticSize = Enum.AutomaticSize.Y
 objectiveDetail.LayoutOrder = 1
 objectiveDetail.TextWrapped = true
 objectiveDetail.TextYAlignment = Enum.TextYAlignment.Top
@@ -441,11 +443,6 @@ local function serverNow(): number
 	return if current then current.now + (os.clock() - receivedAt) else os.time()
 end
 
-local function clockText(seconds: number): string
-	local total = math.max(0, math.ceil(seconds))
-	return string.format("%d:%02d", math.floor(total / 60), total % 60)
-end
-
 local function setProgress(ratio: number)
 	ratio = math.clamp(ratio, 0, 1)
 	if math.abs(ratio - progressRatio) < 0.001 then
@@ -463,45 +460,15 @@ local function setProgress(ratio: number)
 end
 
 local function renderEvent()
-	local snapshot = current
-	local island = if snapshot then snapshot.island else nil
-	setEnabled(eventButton, false)
-	if not island then
-		local recovery = snapshot ~= nil and snapshot.saveStatus == "recovery"
-		eventStatus.Text = if recovery
-			then "Visit friends from Crew while your island is unavailable."
-			else "Your island is getting ready."
-		eventButton.Text = if recovery then "Island unavailable" else "Waiting for island"
-		setProgress(0)
-		return
-	end
-	local event = island.event
-	local now = serverNow()
-	if event and event.phase == "active" then
-		local remaining = event.endsAt - now
-		eventStatus.Text =
-			string.format("%d / %d repairs  •  %s left", event.progress, event.required, clockText(remaining))
-		eventButton.Text = if remaining > 0 then "Use the repair stations" else "Resolving storm…"
-		setProgress(event.progress / math.max(1, event.required))
-		goalSummary.Text = "Protect the beacon · " .. clockText(remaining)
-		return
-	end
-	setProgress(if event and event.phase == "success" then 1 else 0)
-	if not island.projects.beacon then
-		eventStatus.Text = "Complete the beacon to begin."
-		eventButton.Text = "Beacon required"
-	elseif island.nextEventAt > now then
-		local result = if event and event.phase == "success" then "Storm survived!" else "The island is recovering."
-		eventStatus.Text = result .. " Next storm in " .. clockText(island.nextEventAt - now) .. "."
-		eventButton.Text = "Beacon recharging"
-	elseif snapshot and snapshot.isOwner then
-		eventStatus.Text = "Ready for a challenge? Stand near the beacon to start."
-		eventButton.Text = "Start storm"
-		setEnabled(eventButton, canRequest({ kind = "startEvent" }))
-	else
-		eventStatus.Text = "The host can start the storm. Stay nearby to help repair."
-		eventButton.Text = "Host starts the storm"
-	end
+	-- Recompute both objective and event together so timer updates cannot replace
+	-- visitor or recovery guidance with instructions the player cannot perform.
+	local view = Guidance.present(current, serverNow(), player.UserId)
+	goalSummary.Text = view.summary
+	objectiveDetail.Text = view.detail
+	eventStatus.Text = view.event.status
+	eventButton.Text = view.event.button
+	setEnabled(eventButton, view.event.enabled)
+	setProgress(view.event.progress)
 end
 
 local function layout()
@@ -806,107 +773,27 @@ end
 local function renderSnapshot()
 	local snapshot = current
 	local island = if snapshot then snapshot.island else nil
-	local canEdit = ClientPolicy.canEdit(snapshot)
-	if island and snapshot then
-		roleLabel.Text = if snapshot.isOwner then "Owner" elseif snapshot.canEdit then "Helper" else "Visitor"
-		islandName.Text = if snapshot.isOwner then "Your island" else snapshot.ownerName .. "'s island"
+	local view = Guidance.present(snapshot, serverNow(), player.UserId)
+	roleLabel.Text = view.role
+	islandName.Text = view.islandName
+	if island then
 		woodValue.Text = tostring(island.stockpile.wood or 0)
 		stoneValue.Text = tostring(island.stockpile.stone or 0)
-		local nextProject: string? = nil
-		for _, id in ipairs(Config.ProjectOrder) do
-			if not island.projects[id] then
-				nextProject = id
-				break
-			end
-		end
-		if not canEdit and snapshot.isOwner then
-			goalSummary.Text = "Island actions are paused"
-			objectiveDetail.Text =
-				"Saving is unavailable and this island is paused. Rejoin to reconnect before gathering or building again."
-		elseif not canEdit and not snapshot.isOwner then
-			goalSummary.Text = "Explore " .. snapshot.ownerName .. "'s island"
-			objectiveDetail.Text =
-				"You are visiting. Ask the host for an invitation, then accept it in Crew to gather and build here."
-		elseif nextProject then
-			local project = Config.Projects[nextProject]
-			local woodNeeded = math.max(0, project.cost.wood - (island.stockpile.wood or 0))
-			local stoneNeeded = math.max(0, project.cost.stone - (island.stockpile.stone or 0))
-			if woodNeeded > 0 or stoneNeeded > 0 then
-				goalSummary.Text = "Gather for the " .. project.label
-				if stoneNeeded > 0 then
-					objectiveDetail.Text =
-						"Cross the bridge to mine stone. Gather from trees for wood; everything goes into this island's shared stockpile."
-				else
-					objectiveDetail.Text = "Find a tree and use its prompt to gather wood. "
-						.. woodNeeded
-						.. " more wood will cover the "
-						.. project.label
-						.. "."
-				end
-			else
-				goalSummary.Text = "Build the " .. project.label
-				objectiveDetail.Text = "Materials are ready. Walk to the marked "
-					.. project.label
-					.. " site and use its prompt or the Build button below."
-			end
-		elseif island.tutorialStage >= 5 then
-			goalSummary.Text = "An island worth coming back to"
-			objectiveDetail.Text =
-				"Your island is complete. Invite friends, gather supplies, and defend the beacon again when it recharges."
-		else
-			goalSummary.Text = "Weather your first storm"
-			objectiveDetail.Text =
-				"The host starts the storm at the beacon. Use the three repair stations together until the repair goal is met."
-		end
 	else
-		local recovery = snapshot ~= nil and snapshot.saveStatus == "recovery"
-		roleLabel.Text = if recovery then "Paused" else "Loading"
-		islandName.Text = if recovery then "Island unavailable" else "Preparing your island…"
 		woodValue.Text = "—"
 		stoneValue.Text = "—"
-		goalSummary.Text = if recovery then "Unable to load this island" else "Loading your island…"
-		objectiveDetail.Text = if recovery
-			then "Your island is unavailable. You can still visit friends or accept an invitation in Crew. Rejoin to try loading your island again."
-			else "Loading saved progress and preparing your island. You can visit friends or answer invitations in Crew while you wait."
 	end
-	for _, id in ipairs(Config.ProjectOrder) do
-		local project = Config.Projects[id]
+	for index, id in ipairs(Config.ProjectOrder) do
+		local project = view.projects[id]
 		local row = projectRows[id]
-		local built = island ~= nil and island.projects[id] == true
-		local unlocked = island ~= nil and (not project.prerequisite or island.projects[project.prerequisite] == true)
-		local affordable = island ~= nil
-			and (island.stockpile.wood or 0) >= project.cost.wood
-			and (island.stockpile.stone or 0) >= project.cost.stone
-		local cost = tostring(project.cost.wood) .. " wood"
-		if project.cost.stone > 0 then
-			cost ..= " + " .. project.cost.stone .. " stone"
-		end
-		row.cost.Text = if built then "Completed" else cost
-		row.cost.TextColor3 = if built then palette.accent else palette.muted
-		row.marker.Text = if built then "✓" else tostring(table.find(Config.ProjectOrder, id))
-		row.action.Text = if built
-			then "Built"
-			elseif not unlocked then "Locked"
-			elseif not affordable then "Gather"
-			else "Build"
-		setEnabled(row.action, canRequest({ kind = "build", target = id }) and unlocked and affordable and not built)
+		row.cost.Text = project.cost
+		row.cost.TextColor3 = if project.built then palette.accent else palette.muted
+		row.marker.Text = if project.built then "✓" else tostring(index)
+		row.action.Text = project.action
+		setEnabled(row.action, project.enabled)
 	end
-	if snapshot then
-		local statuses: { [string]: string } = {
-			loading = "Loading saved progress…",
-			session = "Session only",
-			saved = "Progress saved",
-			pending = "Unsaved changes · saving soon",
-			saving = "Saving progress…",
-			recovery = if snapshot.canEdit then "Retrying save…" else "Save unavailable · building paused",
-		}
-		local status = statuses[snapshot.saveStatus] or "Checking save status…"
-		saveLabel.Text = if snapshot.studioMode then "Session only • Studio" else status
-		if snapshot.studioMode and snapshot.saveStatus == "recovery" then
-			saveLabel.Text ..= if snapshot.canEdit then " · retrying" else " · building paused"
-		end
-		saveLabel.TextColor3 = if snapshot.saveStatus == "recovery" then palette.error else palette.text
-	end
+	saveLabel.Text = view.saveLabel
+	saveLabel.TextColor3 = if view.saveWarning then palette.error else palette.text
 	setDrawer(drawerOpen)
 	renderSocial()
 	renderEvent()
