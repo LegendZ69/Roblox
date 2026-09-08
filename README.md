@@ -63,6 +63,7 @@ Studio persistence uses `DriftwoodIsles_v1_Studio`, separate from the live store
 | Area | Responsibility |
 | --- | --- |
 | `src/shared/Config.luau` | Resource yields, costs, coordinates, event timings, and limits |
+| `src/shared/ClientPolicy.luau` | Testable HUD action eligibility, including recovery-safe social controls |
 | `src/server/Island.luau` | Non-yielding island actions and event rules |
 | `src/server/Persistence.luau` | Session ownership and conditional saves |
 | `src/server/Session.luau` | Request validation, crew invitations, visiting, routing, and request limits |
@@ -76,7 +77,7 @@ The client submits intentions; the server checks permissions, location, characte
 
 ## Validation and release status
 
-The automated pipeline compiles all Luau, strictly analyzes the pure core and tests, checks formatting, runs 41 behavior groups, and builds the Studio place. The build gate verifies that the place embeds the exact current source in the correct services, preserves configured properties, and contains no test scripts.
+The automated pipeline compiles all Luau, strictly analyzes the pure core and tests, checks formatting, runs 50 behavior groups, and builds the Studio place. The build gate verifies that the place embeds the exact current source in the correct services, preserves configured properties with compatible types, and contains no test scripts. Release validation also runs 45 Python tooling tests.
 
 The multiplayer scenarios run the same `Session` coordinator used by the live server together with the real `Island` and `Persistence` modules. They cover invitations, host-only progress, revocation and departures, four-player storm rewards, request limits, and lost save sessions using controlled clocks, character facts, and storage. These checks do not run Roblox clients, simulate physics, render the UI, exercise real DataStore networking, or substitute for engine-aware Script Analysis.
 
@@ -86,7 +87,7 @@ The game has no paid products or external asset dependencies. The working title 
 
 ## Versioned releases
 
-The first release is **0.1.0-alpha.1**. `VERSION` records the source version; `ReplicatedStorage.ReleaseVersion` embeds it in the place for identification in Studio. Packaging rejects a mismatch. See [CHANGELOG.md](CHANGELOG.md) for changes and [the release procedure](docs/releasing.md) for future versions.
+The current release version is **0.1.0-alpha.2**. `VERSION` records the source version; `ReplicatedStorage.ReleaseVersion` embeds it in the place for identification in Studio. Packaging rejects a mismatch. See [CHANGELOG.md](CHANGELOG.md) for changes and [the release procedure](docs/releasing.md) for future versions.
 
 Each release includes a versioned place, a ZIP with setup/validation guides, a source/tool manifest, and SHA-256 checksums. The workflow runs all game and release checks before uploading assets to a draft release, then publishes it. Alpha tags remain marked as prereleases; published version files are never silently replaced.
 

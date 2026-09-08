@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.1.0-alpha.2 — 2026-09-08
+
+Recovery controls and release handoff fixes.
+
+- Keep Visit, invitation responses, and Home available after a snapshot when the player's own profile is loading or unavailable. Building and owner-only controls remain gated by server-granted permissions.
+- Label Home as a hub return when the personal island is unavailable; preserve a chosen host when the personal profile finishes loading.
+- Recheck shutdown after waiting for a previous player runtime, and cancel delayed load retries when shutdown, departure, or closure occurred during the wait.
+- Support retrying an earlier release commit from reviewed `main` history instead of accidentally packaging newer `main` contents.
+- Include all setup-guide link targets in the ZIP and test actual repository documentation links.
+- Reject unverified root directives and incompatible property types in the place verifier; preserve exact large integer values.
+- Verify 50 Luau behavior groups and 45 Python tooling tests. Studio/device checks remain pending.
+
 ## 0.1.0-alpha.1 — 2026-09-07
 
 First packaged Driftwood Isles alpha.

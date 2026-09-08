@@ -150,3 +150,12 @@ This plan uses the spec structure and demoable dependency slices from Matt Pococ
 The implementation adopted the working title, four-player limit, owner/helper model, fixed construction sites, event, and public-interface test boundary. Pacing remains a target to measure. GitHub source and downloadable alpha releases are authorized; Roblox experience publication and device testing still require access to the target experience and devices.
 
 All seven slices have their cloud-implementable code and packaging. The remaining acceptance work is the recorded Studio/device checklist, including runtime gameplay, networking, controls, performance, and pacing. Additional content remains outside this alpha scope.
+
+## Versioned milestone record
+
+| Version | Completed cloud milestone | Remaining validation |
+| --- | --- | --- |
+| 0.1.0-alpha.1 | Core solo/co-op loop, saved ownership, production coordinator tests, reproducible versioned GitHub release | Studio and device gate |
+| 0.1.0-alpha.2 | Recovery-safe Crew controls, shutdown wait guards, exact historical release retries, complete setup ZIP, stricter place verification | GUI/lifecycle effects require Studio; device/performance/pacing gate unchanged |
+
+Each version is recorded in `CHANGELOG.md` and its own release notes. A reviewed version change on `main` builds, validates, and publishes its GitHub prerelease. This does not publish a Roblox experience.

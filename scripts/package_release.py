@@ -29,7 +29,10 @@ VERSION_PATTERN = re.compile(
     r"(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?",
     re.ASCII,
 )
-DOCUMENTS = ("README.md", "docs/validation.md", "docs/studio-validation.md")
+DOCUMENTS = (
+    "README.md", "docs/validation.md", "docs/studio-validation.md", "docs/releasing.md",
+    "docs/game-plan.md", "CONTEXT.md", "CONTRIBUTING.md", "docs/implementation-contract.md",
+)
 PENDING_STUDIO_CHECKS = (
     "Roblox Studio Script Analysis",
     "Actual server and client multiplayer playtests",

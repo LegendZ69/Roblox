@@ -1,6 +1,6 @@
 # Implementation validation
 
-Date: 7 September 2026. Target: the Driftwood Isles alpha implementation on `feat/driftwood-isles`.
+Date: 8 September 2026. Target: Driftwood Isles `0.1.0-alpha.2`.
 
 ## Automated checks
 
@@ -8,20 +8,23 @@ The final local gate is `python3 scripts/dev.py all --tools-dir ../tools` using 
 
 | Check | Result |
 | --- | --- |
-| Luau syntax compilation | Passed for all 10 source/test files |
-| Strict analysis of Config, Island, Persistence, Session, and their tests | Passed with zero diagnostics |
+| Luau syntax compilation | Passed for all 12 source/test files |
+| Strict analysis of Config, ClientPolicy, Island, Persistence, Session, and their tests | Passed with zero diagnostics |
 | StyLua formatting | Passed |
 | Island public-action suite | 10 behavior groups passed |
 | Persistence public-interface suite | 20 scenarios passed |
-| Session public-request integration suite | 11 behavior groups passed |
+| Session public-request integration suite | 12 behavior groups passed |
+| Client action-eligibility policy suite | 8 behavior groups passed |
 | Rojo place build | Passed; generated `build/DriftwoodIsles.rbxlx` |
-| Built-place verification | Passed; 17 instances, 7 exact source embeddings, configured properties including release version |
-| Release packaging suite | 10 cases passed, including deterministic archives and committed-source provenance |
+| Built-place verification | Passed; 18 instances, 8 exact source embeddings, configured properties including release version |
+| Release packaging suite | 12 cases passed, including deterministic archives, committed-source provenance, and actual setup-guide links |
 | Release publication suite | 17 cases passed, including draft upload, interrupted resume, and conflict refusal |
+| Reviewed release-commit selector suite | 8 cases passed |
+| Place-verifier regression suite | 8 cases passed |
 
 Game-rule scenarios cover resource depletion, no-overspend construction, unauthorized/distant/dead/malformed actions, helper revocation, closure, solo/group event work, cooldowns, reward replay, reload, invalid records, and detached state. Persistence scenarios cover exclusive ownership, expiry, takeover, revision conflicts, retry callbacks, release, uncertain results, snapshots across yields, concurrent operations, and Studio IDs.
 
-The 11 session groups run the production request coordinator with the real Island and Persistence modules, controlled clocks and character facts, an in-memory storage adapter, and recorded transport effects. They verify two-player invitation-to-build-to-save behavior; host/helper stockpile isolation; revocation and stale host prompts; unknown/malformed/forged requests; invite expiry/decline/replay; owner and helper departures/rejoins; four-player storm scaling and one-time persisted rewards; participant eligibility; shared prompt/remote throttling; detached views with Studio IDs; and pause behavior after lease expiry or an unconfirmed save. Total: **41 behavior groups across 3 suites**. This is server coordinator integration testing, not a running Roblox multiplayer session.
+The 12 session groups run the production request coordinator with the real Island and Persistence modules, controlled clocks and character facts, an in-memory storage adapter, and recorded transport effects. They verify two-player invitation-to-build-to-save behavior; host/helper stockpile isolation; revocation and stale host prompts; unknown/malformed/forged requests; invite expiry/decline/replay; owner and helper departures/rejoins; four-player storm scaling and one-time persisted rewards; participant eligibility; shared prompt/remote throttling; detached views with Studio IDs; pause behavior after lease expiry or an unconfirmed save; and invited cooperation when the helper's own profile is unavailable, without creating a replacement profile. ClientPolicy adds eight groups for the actual HUD's startup, loading/recovery, owner/helper/visitor, frozen-state, social-target, save-state, and malformed-action decisions. Total: **50 behavior groups across 4 Luau suites**. This does not run Roblox clients or GUI events.
 
 The build verifier derives instance paths and script classes from the project mappings, checks the embedded source against current files, enforces server/shared/client service placement, and checks configured primitive properties. It rejects unexpected instances and test scripts. Five intentionally corrupted artifacts were rejected during verification; a temporary added module was discovered automatically, and invalid test/server source mappings were rejected.
 
@@ -76,3 +79,9 @@ The departure scenarios compose `Session.remove`, `Island.close`, and `Persisten
 An audit against the approved alpha scope found no missing cloud-verifiable gameplay implementation. Version `0.1.0-alpha.1` adds embedded version identity, deterministic release packaging, source/tool manifests, checksums, and a GitHub workflow that publishes a new version after validation. Repeated Rojo builds produced identical place bytes.
 
 Release review found and fixed two issues: ignored or index-hidden source edits could otherwise enter a package without belonging to its recorded commit, and SemVer build metadata was accepted by packaging but initially rejected by publication. The packager now compares the project and every mapped source byte-for-byte with the commit, and the publisher accepts the same safe version filenames. All **27 release-tool tests** pass. They exercise real temporary Git/package inputs and controlled API responses; the live workflow is the publication record. No release blocker remained after review.
+
+### Alpha.2 recovery and handoff review
+
+Independent game and release reviews found no blocking correctness issues in the changes against `173241f`. Both HUD buttons and outgoing requests now use the tested ClientPolicy. Loading/unavailable profiles retain safe social controls while economic and owner-only actions stay restricted. The server rechecks shutdown/departure after waits and preserves a chosen visit when personal loading finishes. Those small Main lifecycle changes are source-reviewed and compile-checked; Roblox scheduling and teleport effects are not executed by the cloud tests.
+
+Release retries now select an exact commit from reviewed main history before running that commit's scripts, and publication receives the selected identity. ZIP tests check all local Markdown links in the actual setup guides. Verifier regressions reject unsupported root settings, Boolean/numeric substitutions, and rounded large integer values. **45 Python tests pass** across packaging, publication, commit selection, and place verification. The remaining milestones require Studio/device/runtime access; no additional approved cloud implementation gap was identified after this review.

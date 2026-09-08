@@ -11,6 +11,7 @@ This checklist requires Roblox Studio on Windows or macOS and access to a dedica
 - [ ] Walk across the bridge in both directions. Check collision edges, tree obstruction, repair station access, and fall recovery.
 - [ ] Complete, fail, and retry a storm. Observe objectives, one reward, cooldown, and no permanent destruction on failure.
 - [ ] Reset the character and confirm the player returns to the active island with correct UI state.
+- [ ] While the personal profile is loading or unavailable, use Crew to visit, accept/decline an invitation, and return to the hub. Confirm personal load completion does not interrupt a chosen visit and that editing still requires host permission.
 
 ## Two and four clients
 
