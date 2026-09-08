@@ -8,6 +8,7 @@ must receive an appropriate check before they become part of the release.
 
 import argparse
 import json
+import math
 from pathlib import Path
 import sys
 from xml.etree import ElementTree
@@ -101,6 +102,9 @@ def expected_instances(project_path):
     tree = project["tree"]
     if tree.get("$className") != "DataModel":
         raise RuntimeError("The project root must be a DataModel")
+    unsupported = {key for key in tree if key.startswith("$")} - {"$className"}
+    if unsupported:
+        raise RuntimeError(f"Unsupported project directives at root: {sorted(unsupported)}")
     for name, node in tree.items():
         if not name.startswith("$"):
             visit(name, node, ())
@@ -112,11 +116,27 @@ def property_value(element):
         if element.text not in ("true", "false"):
             raise RuntimeError("Invalid boolean property in place")
         return element.text == "true"
-    if element.tag in {"float", "double", "int", "int64", "token"}:
+    if element.tag in {"int", "int64", "token"}:
+        return int(element.text)
+    if element.tag in {"float", "double"}:
         return float(element.text)
     if element.tag in {"string", "ProtectedString"}:
         return element.text or ""
     raise RuntimeError(f"Unsupported configured property type: {element.tag}")
+
+
+def compatible_property_type(element, configured_value):
+    # bool subclasses int in Python, but these are distinct Roblox property
+    # types. Check exact JSON primitive types before comparing their values.
+    if type(configured_value) is bool:
+        return element is not None and element.tag == "bool"
+    if type(configured_value) is str:
+        return element is not None and element.tag in {"string", "ProtectedString"}
+    if type(configured_value) is int or (
+        type(configured_value) is float and math.isfinite(configured_value)
+    ):
+        return element is not None and element.tag in {"float", "double", "int", "int64", "token"}
+    raise RuntimeError(f"Unsupported configured property value: {configured_value!r}")
 
 
 def verify_place(project_path, place_path):
@@ -160,7 +180,7 @@ def verify_place(project_path, place_path):
             script_count += 1
         for property_name, value in properties.items():
             element = item.find(f"Properties/*[@name='{property_name}']")
-            if element is None or property_value(element) != value:
+            if not compatible_property_type(element, value) or property_value(element) != value:
                 raise RuntimeError(f"Configured property mismatch: {label}.{property_name}")
     if not script_count:
         raise RuntimeError("Refusing to verify a place with no scripts")

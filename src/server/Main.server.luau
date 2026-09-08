@@ -341,7 +341,8 @@ local function addPlayer(player)
 		end
 		task.wait(0.1)
 	end
-	if player.Parent ~= Players then
+	-- The old runtime may have disappeared during shutdown while this join yielded.
+	if shuttingDown or player.Parent ~= Players then
 		return
 	end
 	local slot
@@ -402,11 +403,14 @@ local function addPlayer(player)
 	local loadDeadline = os.clock() + 10
 	while not record and reason == "busy" and os.clock() < loadDeadline and not runtime.closing do
 		task.wait(0.2)
+		if shuttingDown or runtime.closing or player.Parent ~= Players then
+			break
+		end
 		record, reason = persistence:load(player.UserId, Island.defaultRecord(player.UserId))
 	end
 	runtime.loadedRecord = record
 	runtime.loading = false
-	if runtime.closing or player.Parent ~= Players then
+	if shuttingDown or runtime.closing or player.Parent ~= Players then
 		return
 	end
 	if not record then
@@ -433,7 +437,8 @@ local function addPlayer(player)
 	runtime.model = Island.new(player.UserId, validRecord)
 	runtime.saveStatus = sessionOnly and "session" or "saved"
 	world:addIsland(player.UserId, slot, player.DisplayName, runtime.model:snapshot(os.time()))
-	session:travel(player.UserId, player.UserId)
+	-- Loading can finish after the player has chosen to visit/help elsewhere.
+	session:travel(player.UserId, session:current(player.UserId))
 	broadcast()
 end
 

@@ -8,7 +8,7 @@ This repository contains one application: Driftwood Isles. GitHub releases distr
 2. Set `tree.ReplicatedStorage.ReleaseVersion.$properties.Value` in `default.project.json` to the same version.
 3. Record the changes in `CHANGELOG.md` and add `docs/releases/<version>.md` with release notes and current validation limits.
 4. Run the checks below, review the change, commit, and push it. CI tests the game and packaging on the pull request.
-5. Merge the reviewed version change into `main`. A push changing `VERSION` starts **Publish versioned release**. A manual run from `main` can resume an interrupted release.
+5. Merge the reviewed version change into `main`. A push changing `VERSION` starts **Publish versioned release**. To resume an interrupted release after `main` advances, run the workflow manually from `main` and provide the original full 40-character commit SHA in its optional `commit` input. Leaving it empty selects the current workflow commit.
 
 ```sh
 python3 scripts/bootstrap_tools.py
@@ -22,7 +22,7 @@ The default output directory is `build/release`. It must not already exist. For 
 
 ## Publication behavior
 
-Only the release job receives `contents: write`; pull-request validation has read-only permissions. The workflow checks out the exact triggering commit, runs the full game pipeline and release-tool tests, packages it, and uploads all release files. The publisher verifies the source commit and local checksums before using GitHub's release API.
+Only the release job receives `contents: write`; pull-request validation has read-only permissions. The workflow fetches `main` history and validates the requested full commit SHA is part of that reviewed history before checking it out or executing its build scripts. Branch names, unrelated commits, and dirty checkouts are rejected. Automatic runs select the triggering commit; manual retries can select an older reviewed commit. The publisher receives that verified selection, not the newer workflow event SHA. The workflow runs the selected commit's full game pipeline and release-tool tests, packages it, and uploads all release files. The publisher verifies the source commit and local checksums before using GitHub's release API.
 
 Assets are uploaded to a draft first. Publication happens only after every asset is confirmed. An interrupted draft can resume when existing assets match exactly. A conflicting tag, commit, or asset stops publication. Published assets are never overwritten; corrections use a new version. Versions with an alpha/beta/rc suffix are marked as prereleases. This sequence uses GitHub's documented [release](https://docs.github.com/en/rest/releases/releases) and [asset upload](https://docs.github.com/en/rest/releases/assets) endpoints.
 

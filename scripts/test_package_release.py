@@ -3,15 +3,18 @@
 import hashlib
 import json
 from pathlib import Path
+import posixpath
+import re
 import subprocess
 import sys
 import tempfile
 import unittest
 from xml.etree import ElementTree
+from urllib.parse import unquote, urlsplit
 import zipfile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from package_release import package_release, validate_version
+from package_release import DOCUMENTS, package_release, validate_version
 from verify_place import verify_place
 
 
@@ -23,8 +26,20 @@ class ReleasePackagingTests(unittest.TestCase):
         self.write(".gitignore", "build/\n")
         self.write("VERSION", "0.1.0-alpha.1\n")
         self.write("scripts/toolchain.json", json.dumps({"luau": {"version": "0.737"}}))
-        for name in ("README.md", "docs/validation.md", "docs/studio-validation.md", "CHANGELOG.md"):
+        for name in (
+            "README.md", "docs/validation.md", "docs/studio-validation.md", "CHANGELOG.md",
+            "docs/releasing.md", "docs/game-plan.md", "CONTEXT.md", "CONTRIBUTING.md",
+            "docs/implementation-contract.md",
+        ):
             self.write(name, name + "\n")
+        self.write("README.md", "\n".join(
+            f"[Guide]({name}#section)" for name in (
+                "docs/validation.md", "docs/studio-validation.md", "CHANGELOG.md",
+                "docs/releasing.md", "docs/game-plan.md", "CONTEXT.md", "CONTRIBUTING.md",
+                "docs/implementation-contract.md",
+            )
+        ) + "\n[Online guide](https://example.invalid/guide.md)\n[This page](#section)\n")
+        self.write("docs/releasing.md", "[Studio guide](studio-validation.md#section)\n[Overview](../README.md)\n")
         self.write("docs/releases/0.1.0-alpha.1.md", "Alpha release fixture\n")
         source = "print('fixture')\n"
         self.write("src/server/Main.server.luau", source)
@@ -106,6 +121,31 @@ class ReleasePackagingTests(unittest.TestCase):
             for line in archive.read("SHA256SUMS").decode().splitlines():
                 checksum, name = line.split("  ")
                 self.assertEqual(checksum, hashlib.sha256(archive.read(name)).hexdigest())
+
+    def test_setup_archive_contains_every_local_markdown_guide_link(self):
+        self.package()
+        self.assert_archive_guide_links()
+
+    def test_current_repository_guides_have_complete_archive_links(self):
+        source_root = Path(__file__).resolve().parents[1]
+        for name in (*DOCUMENTS, "CHANGELOG.md"):
+            self.write(name, (source_root / name).read_text(encoding="utf-8"))
+        self.commit()
+        self.package()
+        self.assert_archive_guide_links()
+
+    def assert_archive_guide_links(self):
+        with zipfile.ZipFile(self.root / "build/release/DriftwoodIsles-0.1.0-alpha.1.zip") as archive:
+            members = set(archive.namelist())
+            for name in sorted(members):
+                if not name.endswith(".md"):
+                    continue
+                for target in re.findall(r"\]\(([^\s)]+)\)", archive.read(name).decode()):
+                    parsed = urlsplit(target)
+                    if parsed.scheme or parsed.netloc or not parsed.path.endswith(".md"):
+                        continue
+                    resolved = posixpath.normpath(posixpath.join(posixpath.dirname(name), unquote(parsed.path)))
+                    self.assertIn(resolved, members, f"Broken archive link: {name} -> {target}")
 
     def test_dirty_or_untracked_sources_never_produce_release(self):
         for name in ("src/server/Main.server.luau", "src/server/Extra.luau"):

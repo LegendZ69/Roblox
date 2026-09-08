@@ -5,6 +5,11 @@ on:
     branches: [main]
     paths: [VERSION]
   workflow_dispatch:
+    inputs:
+      commit:
+        description: Exact full commit SHA from main history; leave empty for this run's main commit
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -23,10 +28,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: main
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - name: Select exact reviewed release commit
+        id: select
+        env:
+          REQUESTED_COMMIT: ${{ inputs.commit || github.sha }}
+        run: python scripts/select_release_commit.py --commit "$REQUESTED_COMMIT"
       - name: Install checksum-pinned tools
         run: python scripts/bootstrap_tools.py
       - name: Verify game and built place
@@ -44,5 +56,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_REPOSITORY: ${{ github.repository }}
-          RELEASE_COMMIT: ${{ github.sha }}
+          RELEASE_COMMIT: ${{ steps.select.outputs.commit }}
         run: python scripts/publish_release.py --directory build/release --repository "$RELEASE_REPOSITORY" --commit "$RELEASE_COMMIT"

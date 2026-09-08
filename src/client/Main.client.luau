@@ -9,6 +9,7 @@ local SoundService = game:GetService("SoundService")
 
 local player = Players.LocalPlayer
 local Config: any = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Config"))
+local ClientPolicy = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("ClientPolicy"))
 local remotes = ReplicatedStorage:WaitForChild("Remotes")
 local actionRemote = remotes:WaitForChild("Action") :: RemoteEvent
 local stateRemote = remotes:WaitForChild("State") :: RemoteEvent
@@ -31,6 +32,7 @@ type IslandEvent = {
 }
 type IslandSnapshot = {
 	ownerId: number,
+	accepting: boolean?,
 	stockpile: { [string]: number },
 	projects: { [string]: boolean },
 	tutorialStage: number,
@@ -152,13 +154,12 @@ local function setEnabled(object: TextButton, enabled: boolean)
 		else palette.text
 end
 
-local function ready(): boolean
-	local snapshot = current
-	return snapshot ~= nil and snapshot.island ~= nil and snapshot.saveStatus ~= "loading"
+local function canRequest(action: Action): boolean
+	return ClientPolicy.canRequest(current, player.UserId, action)
 end
 
 local function send(action: Action)
-	if not ready() or os.clock() - lastActionAt < 0.35 then
+	if not canRequest(action) or os.clock() - lastActionAt < 0.35 then
 		return
 	end
 	lastActionAt = os.clock()
@@ -466,8 +467,11 @@ local function renderEvent()
 	local island = if snapshot then snapshot.island else nil
 	setEnabled(eventButton, false)
 	if not island then
-		eventStatus.Text = "Your island is getting ready."
-		eventButton.Text = "Waiting for island"
+		local recovery = snapshot ~= nil and snapshot.saveStatus == "recovery"
+		eventStatus.Text = if recovery
+			then "Visit friends from Crew while your island is unavailable."
+			else "Your island is getting ready."
+		eventButton.Text = if recovery then "Island unavailable" else "Waiting for island"
 		setProgress(0)
 		return
 	end
@@ -493,7 +497,7 @@ local function renderEvent()
 	elseif snapshot and snapshot.isOwner then
 		eventStatus.Text = "Ready for a challenge? Stand near the beacon to start."
 		eventButton.Text = "Start storm"
-		setEnabled(eventButton, ready() and snapshot.canEdit)
+		setEnabled(eventButton, canRequest({ kind = "startEvent" }))
 	else
 		eventStatus.Text = "The host can start the storm. Stay nearby to help repair."
 		eventButton.Text = "Host starts the storm"
@@ -606,20 +610,29 @@ local function renderSocial()
 	local invites: { InviteEntry } = if snapshot then snapshot.invites else {}
 	local helpers: { number } = if island then island.helpers else {}
 	local isOwner = snapshot ~= nil and snapshot.isOwner
-	local editable = ready() and snapshot ~= nil and snapshot.canEdit
+	local editable = ClientPolicy.canEdit(snapshot)
 	local signature = HttpService:JSONEncode({
 		players,
 		invites,
 		helpers,
 		isOwner,
 		editable,
-		ready(),
+		snapshot ~= nil,
 		if island then island.ownerId else 0,
 	})
-	setEnabled(homeButton, ready() and island ~= nil and island.ownerId ~= player.UserId)
-	homeButton.Text = if island and island.ownerId == player.UserId
+	local ownIslandAvailable = false
+	for _, entry in players do
+		if entry.userId == player.UserId then
+			ownIslandAvailable = entry.hasIsland
+			break
+		end
+	end
+	local onOwnIsland = island ~= nil and island.ownerId == player.UserId and ownIslandAvailable
+	setEnabled(homeButton, canRequest({ kind = "home" }) and not onOwnIsland)
+	homeButton.Text = if onOwnIsland
 		then "You are on your island"
-		else "Return to my island"
+		elseif ownIslandAvailable then "Return to my island"
+		else "Return to the hub"
 	if signature == socialSignature then
 		return
 	end
@@ -670,7 +683,7 @@ local function renderSocial()
 			local accept = button("Accept", row, "Accept & visit", true)
 			accept.Position = UDim2.fromOffset(10, 72)
 			accept.Size = UDim2.new(0.58, -15, 0, 44)
-			setEnabled(accept, ready())
+			setEnabled(accept, canRequest({ kind = "acceptInvite", userId = invite.ownerId }))
 			accept.Activated:Connect(function()
 				if accept.Active then
 					send({ kind = "acceptInvite", userId = invite.ownerId })
@@ -679,7 +692,7 @@ local function renderSocial()
 			local decline = button("Decline", row, "Decline")
 			decline.Position = UDim2.new(0.58, 3, 0, 72)
 			decline.Size = UDim2.new(0.42, -13, 0, 44)
-			setEnabled(decline, ready())
+			setEnabled(decline, canRequest({ kind = "declineInvite", userId = invite.ownerId }))
 			decline.Activated:Connect(function()
 				if decline.Active then
 					send({ kind = "declineInvite", userId = invite.ownerId })
@@ -712,7 +725,7 @@ local function renderSocial()
 			local revoke = button("Revoke", row, "Remove")
 			revoke.Position = UDim2.new(1, -94, 0, 10)
 			revoke.Size = UDim2.fromOffset(84, 44)
-			setEnabled(revoke, editable)
+			setEnabled(revoke, canRequest({ kind = "revoke", userId = userId }))
 			revoke.Activated:Connect(function()
 				if revoke.Active then
 					send({ kind = "revoke", userId = userId })
@@ -750,7 +763,7 @@ local function renderSocial()
 		local visit = button("Visit", row, "Visit island")
 		visit.Position = UDim2.fromOffset(10, 56)
 		visit.Size = UDim2.new(0.5, -14, 0, 44)
-		setEnabled(visit, ready() and entry.hasIsland and (not island or island.ownerId ~= entry.userId))
+		setEnabled(visit, canRequest({ kind = "visit", userId = entry.userId }))
 		visit.Activated:Connect(function()
 			if visit.Active then
 				send({ kind = "visit", userId = entry.userId })
@@ -760,7 +773,7 @@ local function renderSocial()
 			button("Invite", row, if helperLookup[entry.userId] then "Already helping" else "Invite to help", true)
 		inviteButton.Position = UDim2.new(0.5, 4, 0, 56)
 		inviteButton.Size = UDim2.new(0.5, -14, 0, 44)
-		setEnabled(inviteButton, editable and isOwner and not helperLookup[entry.userId])
+		setEnabled(inviteButton, canRequest({ kind = "invite", userId = entry.userId }))
 		inviteButton.Activated:Connect(function()
 			if inviteButton.Active then
 				send({ kind = "invite", userId = entry.userId })
@@ -770,7 +783,12 @@ local function renderSocial()
 	if otherCount == 0 then
 		note("Your crew starts here. Friends can join this server from Roblox.", 62)
 	end
-	if not isOwner then
+	if not ownIslandAvailable then
+		note(
+			"Your island is unavailable right now. You can still visit friends or accept an invitation to help on their islands.",
+			65
+		)
+	elseif not isOwner then
 		note(
 			"Return to your own island to invite helpers. Visits allow building only after the host's invitation is accepted.",
 			65
@@ -788,8 +806,7 @@ end
 local function renderSnapshot()
 	local snapshot = current
 	local island = if snapshot then snapshot.island else nil
-	local isReady = ready()
-	local canEdit = snapshot ~= nil and snapshot.canEdit and isReady
+	local canEdit = ClientPolicy.canEdit(snapshot)
 	if island and snapshot then
 		roleLabel.Text = if snapshot.isOwner then "Owner" elseif snapshot.canEdit then "Helper" else "Visitor"
 		islandName.Text = if snapshot.isOwner then "Your island" else snapshot.ownerName .. "'s island"
@@ -849,8 +866,8 @@ local function renderSnapshot()
 		stoneValue.Text = "—"
 		goalSummary.Text = if recovery then "Unable to load this island" else "Loading your island…"
 		objectiveDetail.Text = if recovery
-			then "This island is unavailable. Check the message above, then rejoin to try loading again."
-			else "Loading saved progress and preparing your island. The controls will unlock when it is ready."
+			then "Your island is unavailable. You can still visit friends or accept an invitation in Crew. Rejoin to try loading your island again."
+			else "Loading saved progress and preparing your island. You can visit friends or answer invitations in Crew while you wait."
 	end
 	for _, id in ipairs(Config.ProjectOrder) do
 		local project = Config.Projects[id]
@@ -872,7 +889,7 @@ local function renderSnapshot()
 			elseif not unlocked then "Locked"
 			elseif not affordable then "Gather"
 			else "Build"
-		setEnabled(row.action, canEdit and unlocked and affordable and not built)
+		setEnabled(row.action, canRequest({ kind = "build", target = id }) and unlocked and affordable and not built)
 	end
 	if snapshot then
 		local statuses: { [string]: string } = {
@@ -962,7 +979,7 @@ root:GetPropertyChangedSignal("AbsoluteSize"):Connect(layout)
 layout()
 renderSnapshot()
 -- Connect before requesting state, so even a fast in-memory Studio load cannot be missed.
-actionRemote:FireServer({ kind = "sync" })
+send({ kind = "sync" })
 task.spawn(function()
 	while gui.Parent do
 		task.wait(0.25)

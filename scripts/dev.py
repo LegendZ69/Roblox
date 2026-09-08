@@ -46,6 +46,7 @@ def check(tools_dir):
     # by Studio Script Analysis, never by suppressing its unknown engine types.
     core_files = [
         ROOT / "src/shared/Config.luau",
+        ROOT / "src/shared/ClientPolicy.luau",
         ROOT / "src/server/Island.luau",
         ROOT / "src/server/Persistence.luau",
         ROOT / "src/server/Session.luau",
